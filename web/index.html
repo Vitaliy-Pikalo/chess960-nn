@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>chess960-nn dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg: #0f1419;
+    --panel: #1a2026;
+    --border: #2a3038;
+    --fg: #d4d8df;
+    --muted: #8a9099;
+    --accent: #4a9eff;
+    --success: #4ade80;
+    --warn: #fbbf24;
+    --danger: #f87171;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--fg);
+    height: 100vh;
+    overflow: hidden;
+  }
+  .layout {
+    display: grid;
+    grid-template-columns: 240px 1fr;
+    height: 100vh;
+  }
+  aside {
+    background: var(--panel);
+    border-right: 1px solid var(--border);
+    padding: 16px;
+    overflow-y: auto;
+  }
+  h1 { margin: 0 0 4px 0; font-size: 16px; font-weight: 600; }
+  .sub { font-size: 12px; color: var(--muted); margin-bottom: 16px; }
+  .runs-list { list-style: none; padding: 0; margin: 0; }
+  .runs-list li {
+    padding: 8px 10px;
+    margin-bottom: 4px;
+    border-radius: 6px;
+    cursor: pointer;
+    border: 1px solid transparent;
+    font-size: 13px;
+  }
+  .runs-list li:hover { background: rgba(74, 158, 255, 0.08); }
+  .runs-list li.active {
+    background: rgba(74, 158, 255, 0.16);
+    border-color: var(--accent);
+  }
+  .run-name { font-weight: 500; }
+  .run-meta { font-size: 11px; color: var(--muted); margin-top: 2px; }
+  .badge {
+    display: inline-block;
+    padding: 1px 6px;
+    font-size: 10px;
+    border-radius: 3px;
+    margin-right: 4px;
+    background: var(--border);
+    color: var(--muted);
+  }
+  .badge.rl { background: rgba(74, 158, 255, 0.2); color: var(--accent); }
+  .badge.pretrain { background: rgba(74, 222, 128, 0.15); color: var(--success); }
+
+  main {
+    padding: 24px;
+    overflow-y: auto;
+  }
+  .empty { color: var(--muted); padding: 80px 0; text-align: center; }
+  .run-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 24px;
+  }
+  .run-header h2 { margin: 0; font-size: 20px; }
+  .controls { display: flex; gap: 12px; align-items: center; }
+  .auto-refresh {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 12px; color: var(--muted);
+  }
+  button {
+    background: var(--border);
+    color: var(--fg);
+    border: 1px solid transparent;
+    padding: 6px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+  }
+  button:hover { border-color: var(--accent); }
+
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 12px;
+    margin-bottom: 24px;
+  }
+  .stat-card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px 16px;
+  }
+  .stat-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
+  .stat-value { font-size: 22px; font-weight: 600; margin-top: 4px; }
+  .stat-sub { font-size: 11px; color: var(--muted); margin-top: 2px; }
+
+  .chart-wrap {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+    margin-bottom: 16px;
+    height: 320px;
+  }
+  .chart-title { font-size: 14px; font-weight: 500; margin-bottom: 12px; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); }
+  th { font-weight: 500; color: var(--muted); font-size: 11px; text-transform: uppercase; }
+  td.num { font-variant-numeric: tabular-nums; text-align: right; }
+  .yes { color: var(--success); }
+  .no { color: var(--danger); }
+
+  .toggle { display: flex; align-items: center; gap: 6px; cursor: pointer; }
+  .toggle input { cursor: pointer; }
+</style>
+</head>
+<body>
+<div class="layout">
+  <aside>
+    <h1>chess960-nn</h1>
+    <div class="sub">live training dashboard</div>
+    <ul class="runs-list" id="runsList"></ul>
+  </aside>
+  <main>
+    <div id="content">
+      <div class="empty">pick a run from the sidebar</div>
+    </div>
+  </main>
+</div>
+
+<script>
+(() => {
+  const state = {
+    runs: [],
+    selected: null,
+    autoRefresh: true,
+    refreshTimer: null,
+    charts: {},
+  };
+
+  const $list = document.getElementById('runsList');
+  const $content = document.getElementById('content');
+
+  async function fetchJson(url) {
+    const r = await fetch(url);
+    if (!r.ok) throw new Error(`${url} -> ${r.status}`);
+    return r.json();
+  }
+
+  async function loadRuns() {
+    try {
+      state.runs = await fetchJson('/api/runs');
+    } catch (e) {
+      state.runs = [];
+    }
+    renderRunsList();
+  }
+
+  function renderRunsList() {
+    $list.innerHTML = '';
+    if (state.runs.length === 0) {
+      $list.innerHTML = '<li style="color:var(--muted);font-size:12px;cursor:default;">no runs found</li>';
+      return;
+    }
+    for (const r of state.runs) {
+      const li = document.createElement('li');
+      if (r.name === state.selected) li.classList.add('active');
+      const badge = r.type === 'rl' ? 'rl' : (r.type === 'pretrain' ? 'pretrain' : '');
+      li.innerHTML = `
+        <div class="run-name">${r.name}</div>
+        <div class="run-meta">
+          <span class="badge ${badge}">${r.type}</span>
+          ${r.n_metric_lines ? r.n_metric_lines + ' steps' : ''}
+          ${r.n_checkpoints ? ' · ' + r.n_checkpoints + ' ckpt' : ''}
+        </div>
+      `;
+      li.onclick = () => selectRun(r.name);
+      $list.appendChild(li);
+    }
+  }
+
+  async function selectRun(name) {
+    state.selected = name;
+    renderRunsList();
+    await renderRun(name);
+    if (state.autoRefresh) startRefresh();
+  }
+
+  function startRefresh() {
+    stopRefresh();
+    state.refreshTimer = setInterval(() => {
+      if (state.selected) renderRun(state.selected, /*incremental=*/true);
+    }, 5000);
+  }
+  function stopRefresh() {
+    if (state.refreshTimer) clearInterval(state.refreshTimer);
+    state.refreshTimer = null;
+  }
+
+  async function renderRun(name, incremental) {
+    let info, metrics, summary;
+    try {
+      [info, metrics, summary] = await Promise.all([
+        fetchJson(`/api/runs/${encodeURIComponent(name)}/info`),
+        fetchJson(`/api/runs/${encodeURIComponent(name)}/metrics`),
+        fetchJson(`/api/runs/${encodeURIComponent(name)}/summary`),
+      ]);
+    } catch (e) {
+      $content.innerHTML = `<div class="empty">failed to load run: ${e.message}</div>`;
+      return;
+    }
+
+    // Re-render UI only on full select (not on incremental refresh).
+    if (!incremental || !document.getElementById('mainView')) {
+      buildLayout(name, info);
+    }
+    updateStats(info, metrics, summary);
+    updateCharts(metrics, info.type);
+    updateSummaryTable(summary, info.type);
+  }
+
+  function buildLayout(name, info) {
+    const isRL = info.type === 'rl';
+    $content.innerHTML = `
+      <div id="mainView">
+        <div class="run-header">
+          <h2>${name} <span class="badge ${info.type}">${info.type}</span></h2>
+          <div class="controls">
+            <label class="toggle"><input type="checkbox" id="autoToggle" ${state.autoRefresh ? 'checked' : ''}> auto-refresh</label>
+            <button id="refreshBtn">refresh</button>
+          </div>
+        </div>
+        <div class="stats-grid" id="statsGrid"></div>
+        ${info.type === 'pretrain' || info.type === 'unknown' ? `
+          <div class="chart-wrap"><div class="chart-title">loss curves</div><canvas id="lossChart"></canvas></div>
+          <div class="chart-wrap"><div class="chart-title">top-1 accuracy</div><canvas id="accChart"></canvas></div>
+        ` : ''}
+        ${isRL ? '<div id="summaryTable"></div>' : ''}
+      </div>
+    `;
+    document.getElementById('autoToggle').onchange = (ev) => {
+      state.autoRefresh = ev.target.checked;
+      if (state.autoRefresh) startRefresh(); else stopRefresh();
+    };
+    document.getElementById('refreshBtn').onclick = () => renderRun(name, true);
+    state.charts = {};
+  }
+
+  function updateStats(info, metrics, summary) {
+    const $sg = document.getElementById('statsGrid');
+    if (!$sg) return;
+    const cards = [];
+
+    if (info.type === 'pretrain' || info.type === 'unknown') {
+      const last = lastTrainRecord(metrics);
+      if (last) {
+        cards.push({ label: 'last loss', value: fmt(last.loss, 3), sub: `epoch ${last.epoch+1}, step ${last.step}` });
+        cards.push({ label: 'last top1', value: pct(last.top1_acc, 2), sub: `n=${last.samples?.toLocaleString() ?? '-'}` });
+        cards.push({ label: 'last lr', value: fmt(last.lr, 5), sub: '' });
+      }
+      const initRec = metrics.find(m => m.phase === 'init');
+      if (initRec) {
+        cards.push({ label: 'positions', value: initRec.train_positions?.toLocaleString() ?? '-', sub: `val ${(initRec.val_positions ?? 0).toLocaleString()}` });
+        cards.push({ label: 'params', value: (initRec.params ?? 0).toLocaleString(), sub: `batch ${initRec.batch_size ?? '-'}` });
+      }
+      cards.push({ label: 'checkpoints', value: info.n_checkpoints, sub: 'saved' });
+    }
+
+    if (info.type === 'rl') {
+      const sp = summary?.selfplay ?? {};
+      const m = summary?.match ?? {};
+      cards.push({ label: 'self-play', value: `${sp.W ?? 0}/${sp.L ?? 0}/${sp.D ?? 0}`, sub: `${sp.games ?? 0} games, ${sp.positions ?? 0} pos` });
+      cards.push({ label: 'train loss', value: fmt(summary?.train?.loss, 3), sub: `${summary?.train?.steps ?? 0} steps` });
+      cards.push({ label: 'match score', value: fmt(m.score, 3), sub: `${m.wins ?? 0}W/${m.losses ?? 0}L/${m.draws ?? 0}D` });
+      cards.push({ label: 'promoted', value: summary?.promoted ? 'yes' : 'no', sub: `threshold ${summary?.promote_threshold ?? '-'}`, color: summary?.promoted ? 'yes' : 'no' });
+    }
+
+    $sg.innerHTML = cards.map(c => `
+      <div class="stat-card">
+        <div class="stat-label">${c.label}</div>
+        <div class="stat-value ${c.color ?? ''}">${c.value}</div>
+        ${c.sub ? `<div class="stat-sub">${c.sub}</div>` : ''}
+      </div>
+    `).join('');
+  }
+
+  function updateCharts(metrics, runType) {
+    if (runType !== 'pretrain' && runType !== 'unknown') return;
+    const $lossCanvas = document.getElementById('lossChart');
+    const $accCanvas = document.getElementById('accChart');
+    if (!$lossCanvas || !$accCanvas) return;
+
+    const trainRecs = metrics.filter(m => m.phase === 'train');
+    const valEnd = metrics.filter(m => m.phase === 'val_epoch_end');
+
+    const steps = trainRecs.map(r => r.step);
+    const trainLoss = trainRecs.map(r => r.loss);
+    const trainPol = trainRecs.map(r => r.policy_loss);
+    const trainVal = trainRecs.map(r => r.value_loss);
+    const trainTop1 = trainRecs.map(r => r.top1_acc);
+
+    const valSteps = valEnd.map(r => r.step);
+    const valLoss = valEnd.map(r => r.loss);
+    const valTop1 = valEnd.map(r => r.top1_acc);
+
+    upsertChart($lossCanvas, 'loss', {
+      type: 'line',
+      data: {
+        labels: steps,
+        datasets: [
+          { label: 'train loss', data: trainLoss, borderColor: '#4a9eff', borderWidth: 1.5, pointRadius: 0, tension: 0.2 },
+          { label: 'policy loss', data: trainPol, borderColor: '#4ade80', borderWidth: 1, pointRadius: 0, tension: 0.2, borderDash: [3, 3] },
+          { label: 'value loss', data: trainVal, borderColor: '#fbbf24', borderWidth: 1, pointRadius: 0, tension: 0.2, borderDash: [3, 3] },
+          { label: 'val loss', data: alignPoints(valSteps, valLoss, steps), borderColor: '#f472b6', borderWidth: 1.5, pointRadius: 4, showLine: false },
+        ],
+      },
+      options: chartOpts('step'),
+    });
+
+    upsertChart($accCanvas, 'acc', {
+      type: 'line',
+      data: {
+        labels: steps,
+        datasets: [
+          { label: 'train top1', data: trainTop1, borderColor: '#4a9eff', borderWidth: 1.5, pointRadius: 0, tension: 0.2 },
+          { label: 'val top1', data: alignPoints(valSteps, valTop1, steps), borderColor: '#f472b6', borderWidth: 1.5, pointRadius: 4, showLine: false },
+        ],
+      },
+      options: chartOpts('step'),
+    });
+  }
+
+  function updateSummaryTable(summary, runType) {
+    if (runType !== 'rl') return;
+    const $t = document.getElementById('summaryTable');
+    if (!$t) return;
+    $t.innerHTML = `
+      <div class="chart-wrap" style="height:auto;">
+        <div class="chart-title">iteration details</div>
+        <table>
+          <tr><th>stage</th><th>metric</th><th class="num">value</th></tr>
+          <tr><td>self-play</td><td>games</td><td class="num">${summary?.selfplay?.games ?? '-'}</td></tr>
+          <tr><td></td><td>positions</td><td class="num">${summary?.selfplay?.positions ?? '-'}</td></tr>
+          <tr><td></td><td>W / L / D / resigns</td><td class="num">${summary?.selfplay?.W ?? '-'} / ${summary?.selfplay?.L ?? '-'} / ${summary?.selfplay?.D ?? '-'} / ${summary?.selfplay?.resigns ?? '-'}</td></tr>
+          <tr><td>train</td><td>final loss</td><td class="num">${fmt(summary?.train?.loss, 4)}</td></tr>
+          <tr><td></td><td>policy / value loss</td><td class="num">${fmt(summary?.train?.policy_loss, 4)} / ${fmt(summary?.train?.value_loss, 4)}</td></tr>
+          <tr><td></td><td>steps / samples</td><td class="num">${summary?.train?.steps ?? '-'} / ${(summary?.train?.samples ?? 0).toLocaleString()}</td></tr>
+          <tr><td>match</td><td>score (a's POV)</td><td class="num">${fmt(summary?.match?.score, 3)}</td></tr>
+          <tr><td></td><td>W / L / D</td><td class="num">${summary?.match?.wins ?? '-'} / ${summary?.match?.losses ?? '-'} / ${summary?.match?.draws ?? '-'}</td></tr>
+          <tr><td>gate</td><td>promoted</td><td class="num ${summary?.promoted ? 'yes' : 'no'}">${summary?.promoted ? 'YES' : 'no'}</td></tr>
+          <tr><td></td><td>threshold</td><td class="num">${summary?.promote_threshold ?? '-'}</td></tr>
+        </table>
+      </div>
+    `;
+  }
+
+  function upsertChart(canvas, id, cfg) {
+    if (state.charts[id]) {
+      const c = state.charts[id];
+      c.data.labels = cfg.data.labels;
+      c.data.datasets = cfg.data.datasets;
+      c.update('none');
+    } else {
+      state.charts[id] = new Chart(canvas, cfg);
+    }
+  }
+
+  function chartOpts(xLabel) {
+    return {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: false,
+      plugins: {
+        legend: { labels: { color: '#d4d8df', font: { size: 11 } } },
+      },
+      scales: {
+        x: { title: { display: true, text: xLabel, color: '#8a9099' }, ticks: { color: '#8a9099' }, grid: { color: '#2a3038' } },
+        y: { ticks: { color: '#8a9099' }, grid: { color: '#2a3038' } },
+      },
+    };
+  }
+
+  function alignPoints(xs, ys, allX) {
+    // Sparse series rendered against a dense x-axis: produce same length, nulls elsewhere.
+    const xset = new Map();
+    for (let i = 0; i < xs.length; i++) xset.set(xs[i], ys[i]);
+    return allX.map(x => xset.has(x) ? xset.get(x) : null);
+  }
+
+  function lastTrainRecord(metrics) {
+    for (let i = metrics.length - 1; i >= 0; i--) {
+      if (metrics[i].phase === 'train') return metrics[i];
+    }
+    return null;
+  }
+
+  function fmt(n, digits) {
+    if (n == null || isNaN(n)) return '-';
+    return Number(n).toFixed(digits);
+  }
+  function pct(n, digits) {
+    if (n == null || isNaN(n)) return '-';
+    return (Number(n) * 100).toFixed(digits) + '%';
+  }
+
+  loadRuns();
+  setInterval(loadRuns, 30000);  // refresh runs list every 30s
+})();
+</script>
+</body>
+</html>
