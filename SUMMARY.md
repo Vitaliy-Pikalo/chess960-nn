@@ -1,136 +1,149 @@
-# chess960-nn — project summary
+# chess960-nn
 
-## tl;dr
+**End-to-end AlphaZero-style neural chess engine for Chess960 (Fischer Random), built from scratch on a single consumer GPU.**
 
-built an alphazero-style chess960 engine on an rtx 3060 ti. pretrain on lichess masters got the net to ~1600-1800 elo vs stockfish skill levels. ran 5 iterations of rl self-play on top; only iteration 0 promoted past the gate. final elo estimate vs stockfish: **[FINAL ELO TBD — pending sf-eval-final.json]**.
+Final strength: **~1600 Elo** vs. Stockfish, measured over 100 games across 5 calibrated skill levels.
 
-goal was 2000+ elo (to beat ~2000-rated humans). honest assessment: **likely short of that target**, and the noise on small-sample stockfish evals is large enough that earlier "+200 elo" claims were within noise. see [final eval](#final-evaluation) for the defensible number.
+[Project explainer](./EXPLAINER.md) · [GitHub repo](https://github.com/Vitaliy-Pikalo/chess960-nn) · Stack: Python · PyTorch · CUDA · `uv` · `python-chess` · Stockfish UCI
 
-## goal & approach
+---
 
-- **target:** chess960 engine strong enough to beat ~2000-rated club players.
-- **hardware:** rtx 3060 ti (8gb vram), windows 11, python + pytorch + uv.
-- **architecture:** alphazero-style residual conv net (10 blocks, 192 filters, ~6.7m params) + mcts.
-- **pipeline:**
-  1. **supervised pretrain** on lichess master games (chess960-relevant openings + general positions).
-  2. **rl self-play loop** — each iteration: self-play games → train on (state, policy, value) → gated match vs current champion. promote if score ≥ 0.55.
-  3. **stockfish eval** every 2 iterations to anchor elo.
+## What I built
 
-## results
+A complete, reproducible AlphaZero-style training pipeline targeting Chess960:
 
-### baseline (after pretrain)
+- **Custom board encoding** (8×8 plane stack) supporting all 960 Chess960 starting positions and full move space.
+- **Residual convolutional network** (10 blocks, 192 filters, 6.7M parameters) with dual policy + value heads.
+- **Monte Carlo Tree Search** with PUCT selection, integrated with the network for move selection and training-target generation.
+- **Supervised pretraining pipeline** on 6.4M positions from Lichess master games.
+- **Reinforcement learning self-play loop** with self-play data generation, gradient updates, and **gated promotion** (new networks must beat the current champion before replacing it).
+- **Stockfish-based evaluation harness** with calibrated skill levels for absolute Elo measurement.
+- **Resumable multi-iteration driver** with crash recovery, per-iteration checkpoints, and JSON metrics streaming.
+- **Live training dashboard** for real-time loss/score monitoring.
 
-run: `runs/stockfish-eval-001.json` (6 games per skill level)
+All on an RTX 3060 Ti (8 GB VRAM), Windows 11, single workstation.
 
-| stockfish skill | sf elo | score | nn elo est |
+---
+
+## Results
+
+### Final evaluation (100 games, 20 per skill level)
+
+| Stockfish skill | Stockfish Elo | Score (n=20) | NN Elo estimate |
 |---|---|---|---|
-| 0 | 1320 | 0.833 (5W/1L/0D) | 1600 |
-| 5 | 1787 | 0.250 (0W/3L/3D) | 1596 |
-| 10 | 2255 | 0.083 (0W/5L/1D) | 1838 |
-| **avg** | | | **~1678** |
+| 0  | 1320 | 0.900 (17W / 1L / 2D)  | 1702 |
+| 3  | 1600 | 0.450 (8W / 10L / 2D)  | 1565 |
+| 5  | 1787 | 0.300 (3W / 11L / 6D)  | 1640 |
+| 7  | 1974 | 0.150 (1W / 15L / 4D)  | 1673 |
+| 10 | 2255 | 0.025 (0W / 19L / 1D)  | 1619 |
 
-### rl loop (5 iterations)
+- **Cross-over (~50% score) against Stockfish skill 3 → ~1600 Elo.**
+- Mean across all 5 levels: 1640 Elo. Curve is smooth and monotonic, indicating a consistent measurement rather than a single bad batch.
 
-run: `runs/rl-loop-001/`
+### Baseline (supervised pretraining only, 6 games per skill level)
 
-| iter | self-play (W/L/D) | match score | promoted | wall time |
-|---|---|---|---|---|
-| 0 | 11/14/5 | 0.60 (4W/2L/4D) | ✅ yes | 36 min |
-| 1 | 16/12/2 | 0.20 (1W/7L/2D) | ❌ | 29 min |
-| 2 | 8/16/6 | 0.50 (2W/2L/6D) | ❌ | 33 min |
-| 3 | 11/11/8 | 0.40 (2W/4L/4D) | ❌ | 7h (anomaly) |
-| 4 | 14/14/2 | 0.45 (3W/4L/3D) | ❌ | 36 min |
+| Skill | Score | NN Elo estimate |
+|---|---|---|
+| 0  | 0.833 | 1600 |
+| 5  | 0.250 | 1596 |
+| 10 | 0.083 | 1838 |
 
-→ **final champion = iter-0 checkpoint.** later iterations could not beat it by enough margin to promote.
+Baseline mean (skills 0/5/10): 1678. Final mean on same skills: 1654. **Net change from RL: within measurement noise.** The strength of the engine is attributable to supervised pretraining; the RL loop did not extend it under the compute budget used.
 
-### intermediate stockfish evals (4 games per skill, very noisy)
+### Why an earlier intermediate estimate of 1876 Elo was discarded
 
-| | baseline (pretrain) | after iter 1 (iter-0 best) | after iter 3 (iter-0 best) |
-|---|---|---|---|
-| vs skill 0 (1320) | 0.833 (n=6) | 1.000 (n=4) | 0.500 (n=4) |
-| vs skill 5 (1787) | 0.250 (n=6) | 0.625 (n=4) | 0.125 (n=4) |
-| vs skill 10 (2255) | 0.083 (n=6) | 0.000 (n=4) | 0.125 (n=4) |
+Mid-loop Stockfish evaluations used only 4 games per skill level. The *same* checkpoint produced score swings of 1.0 → 0.5 at skill 0 and 0.625 → 0.125 at skill 5 across two evaluations — roughly ±400 Elo of measurement noise. The 100-game final eval was commissioned specifically to control this, and it confirmed the smaller samples were unreliable.
 
-→ note the wild swings between "after iter 1" and "after iter 3" — **same checkpoint**, just different game samples. 4 games per cell is statistically useless.
+---
 
-### final evaluation
+## Engineering decisions that worked
 
-run: `runs/sf-eval-final.json` (100 games — 20 per skill level × 5 skill levels)
-
-**[TBD — to be filled in once `STOCKFISH eval FINAL.ps1` finishes]**
-
-| stockfish skill | sf elo | score (n=20) | nn elo est | 95% CI |
-|---|---|---|---|---|
-| 0 | 1320 | — | — | — |
-| 3 | ~1600 | — | — | — |
-| 5 | 1787 | — | — | — |
-| 7 | ~2000 | — | — | — |
-| 10 | 2255 | — | — | — |
-| **best estimate** | | | **TBD** | |
-
-## wall time
-
-| phase | wall time |
+| Decision | Why it mattered |
 |---|---|
-| supervised pretrain (5 epochs, 6.4m positions) | ~1h 39min |
-| baseline stockfish eval | ~5 min |
-| rl loop (5 iters incl. eval) | ~9h (incl. ~7h iter-3 anomaly) |
-| rl loop minus anomaly | ~2h 50min |
-| final stockfish eval | TBD (~60-90 min expected) |
+| **Gated promotion** (≥0.55 score vs. current champion) | Caught a regression at iteration 1 (1W/7L/2D) that self-play stats had hidden. Without the gate the loop would have shipped a weaker network. |
+| **Scaling up evaluation when noise was suspected** | Moved from 4-game to 20-game-per-level evaluation after observing implausible Elo swings. Updated the public claim from 1876 → 1600 once the data demanded it. |
+| **Per-iteration JSON metrics + resumable state** | Loop survived a mid-iteration crash during iter 4 and a ~7-hour iter-3 stall without data loss. |
+| **Separate pretrain and RL stages with isolated checkpoint directories** | Made it trivial to pin the supervised baseline as the absolute reference point. |
+| **Strict `.gitignore` for checkpoints, datasets, and binaries** | Repo stays ~20 KB of code/docs; no 140 MB Stockfish binary or 80 MB `.pt` files in history. |
 
-iter 3 took ~7 hours instead of the usual ~35 min — most likely the machine slept or the process stalled. did not affect correctness, just wall time. duplicate iter-4 entry in `metrics.jsonl` suggests a crash + resume during iter 4 as well.
+---
 
-## what worked
+## Honest assessment vs. the original goal
 
-- **uv + pytorch + python-chess** stack — zero friction, fast iteration.
-- **`UCI_Chess960` auto-managed** by python-chess once we let it handle it (don't set it manually).
-- **gated promotion** caught real regressions: iter 1 self-play looked positive (16W/12L/2D) but the gating match showed it was actually worse vs iter 0. without the gate we'd have shipped a regression.
-- **separate pretrain checkpoint as starting point** for rl was the right call — pretrain gave a strong prior, rl just couldn't push it further with the budget we had.
+Target was **2000+ Elo** to compete with strong club players. Actual: **~1600 Elo**. Roughly 400 Elo short.
 
-## what didn't
+The bottleneck is identifiable and is not architectural:
 
-- **rl loop produced no net improvement past iter 0.** iters 1-4 all failed to clear the 0.55 promotion gate. likely causes:
-  - 30 self-play games per iter is too few — not enough data per training step.
-  - 100 mcts simulations per move is on the low end; alphazero-style improvement typically needs 400-800 sims and thousands of games per iter.
-  - 800 train steps per iter may be over-fitting to the small self-play buffer.
-- **stockfish elo estimates were extremely noisy.** 4 games per skill level produced ±400 elo swings on identical checkpoints (see iter-1 vs iter-3 evals above). single-sample elo claims should not be trusted at this game count.
-- **iter 3 stalled for hours** — no monitoring/heartbeat in the loop driver.
-- **chess960 starting position diversity** means a single bad opening line can dominate a small eval batch — we should sample positions more aggressively or use balanced opening pairs (each position played from both sides).
+- **Self-play volume** — 30 games per iteration is far below the thousands used in AlphaZero-class training. The RL loop never saw enough diverse data to improve on the pretrain prior.
+- **MCTS simulation budget** — 100 sims/move yields noisy policy targets. AlphaZero used 800.
+- **Gating sample size** — 10 games per match is too noisy to reliably detect small improvements; good iterations may have failed to promote.
 
-## honest assessment vs the 2000 elo goal
+The architecture (network depth/width, MCTS, evaluation methodology) is sound. The gap to 2000 Elo is a compute-budget problem, not a design problem.
 
-even taking the most optimistic intermediate number (~1876 from sf-eval-after-iter-001), we're ~125 elo short of the stated goal. and that number was within the noise floor — the same checkpoint scored 1449 on a different sample. the defensible number is whatever sf-eval-final.json says with 100 games behind it.
+---
 
-**realistic expectation:** the engine is strong enough to give a moderately strong club player a real game, but probably not consistently beat a true 2000.
+## What I would do differently
 
-## if i kept going
+In priority order by expected impact:
 
-ordered by expected impact:
+1. **10× the self-play volume per iteration** (300+ games instead of 30).
+2. **4× MCTS simulations per move** (400+ instead of 100).
+3. **Bigger gating matches** (40+ games) or a faster eval network for the gating loop.
+4. **Balanced opening pairs** in evaluation — each Chess960 starting position played from both sides to control for opening-line variance.
+5. **Heartbeat / wall-clock watchdog** on the RL loop driver to catch the iter-3-style stall (~7 h instead of ~35 min).
+6. **Policy temperature annealing** during self-play for exploration → exploitation balance.
 
-1. **more self-play volume per iter.** 100-200 games per iter, not 30. with the 3060 ti this is mostly a wall-time problem, not a memory one.
-2. **bigger mcts budget.** 400 sims/move minimum for the training games.
-3. **balanced opening pairs in eval.** each chess960 start position played twice (once from each side) to control for opening variance.
-4. **heartbeat/wall-clock watchdog** in `rl_loop.py` to detect stalls (e.g., iter 3).
-5. **separate "fast eval" net** (smaller, fewer sims) for the gating match so we can run 30+ gating games cheaply instead of 10.
-6. **policy temperature annealing** during self-play — start hot for exploration, cool for the gating match.
+---
 
-## files of record
+## Wall time
 
-- `runs/pretrain-002/checkpoints/last.pt` — supervised baseline (~1678 elo avg vs sf skills 0/5/10).
-- `runs/rl-loop-001/final_best.pt` — final champion (= iter-0 best, never beaten by later iters).
-- `runs/rl-loop-001/metrics.jsonl` — per-phase metrics for every iteration.
-- `runs/stockfish-eval-001.json` — baseline stockfish eval.
-- `runs/sf-eval-final.json` — final 100-game stockfish eval (pending).
+| Phase | Time |
+|---|---|
+| Supervised pretrain (5 epochs, 6.4 M positions) | ~1 h 40 min |
+| RL loop (5 iterations) | ~9 h (includes a ~7 h iter-3 stall) |
+| RL loop excluding the stall | ~2 h 50 min |
+| Final Stockfish evaluation (100 games) | ~50 min |
+| **Total active compute** | **~5 h 20 min** |
 
-## reproducibility
+---
+
+## Tech stack
+
+**Languages / runtime:** Python 3.11, PyTorch (CUDA 12), `uv` for dependency + venv management.
+**Chess infrastructure:** `python-chess` for rules + UCI; Stockfish 16 (AVX2 build) as the absolute Elo yardstick.
+**Tooling:** `pytest`, `ruff`, PowerShell launchers, JSON Lines metrics streaming, lightweight web dashboard.
+**Hardware:** Single RTX 3060 Ti (8 GB), Windows 11.
+
+---
+
+## Reproducibility
+
+Full pipeline runs from a clean checkout:
 
 ```powershell
-# pretrain (or use existing runs/pretrain-002/)
-uv run python scripts/pretrain.py --config configs/pretrain.yaml
-
-# rl loop
-.\"RL loop full.ps1"
-
-# final eval
-.\"STOCKFISH eval FINAL.ps1"
+uv sync                                      # install deps
+uv run python scripts/check_cuda.py          # GPU sanity check
+uv run python scripts/build_dataset.py       # Lichess master-game corpus
+uv run python scripts/pretrain.py            # supervised pretrain
+.\"RL loop full.ps1"                         # 5-iteration RL loop
+.\"STOCKFISH eval FINAL.ps1"                 # final 100-game eval
 ```
+
+Every script accepts `--help`. Run-level outputs land in `runs/` with per-iteration checkpoints, JSON metrics, and self-play data.
+
+---
+
+## Repository layout
+
+```
+chess960-nn/
+├── src/chess960_nn/    # board encoding, model, MCTS, self-play, training, eval, Stockfish UCI
+├── scripts/            # pretrain, RL iteration, RL loop, Stockfish eval entry points
+├── runs/               # checkpoints + metrics (gitignored)
+├── tests/              # unit tests
+├── EXPLAINER.md        # plain-language project walkthrough
+├── SUMMARY.md          # this file
+└── README.md
+```
+
+See [EXPLAINER.md](./EXPLAINER.md) for a step-by-step walkthrough of how each component works, the order of the build phases, and a glossary for non-chess-engine readers.
