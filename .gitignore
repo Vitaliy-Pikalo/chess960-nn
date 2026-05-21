@@ -16,11 +16,15 @@ uv.lock
 htmlcov/
 runs/
 datasets/
+bin/
 *.pt
 *.ckpt
 *.onnx
 *.pgn.bz2
 *.pgn.zst
+*.log
+*.zip
+*.exe
 web/node_modules/
 web/dist/
 .vscode/
