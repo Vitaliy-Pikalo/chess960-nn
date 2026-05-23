@@ -1,3 +1,15 @@
+---
+title: chess960-nn
+emoji: ♞
+colorFrom: blue
+colorTo: gray
+sdk: docker
+app_port: 7860
+pinned: false
+license: mit
+short_description: AlphaZero-style Chess960 engine — play it live in your browser.
+---
+
 # chess960-nn
 
 An AlphaZero-style neural network engine for **Chess960** (Fischer Random chess).
@@ -7,7 +19,7 @@ An AlphaZero-style neural network engine for **Chess960** (Fischer Random chess)
 - Runs on a single NVIDIA GPU (built on an RTX 3060 Ti, 8 GB VRAM).
 - Interactive demo site: play the engine, watch it face Stockfish, browse training metrics.
 
-[![Deploy to Netlify](https://www.netlify.com/img/deploy/button.svg)](https://app.netlify.com/start/deploy?repository=https://github.com/Vitaliy-Pikalo/chess960-nn)
+🎮 **Live demo:** <https://huggingface.co/spaces/VitaliyPik/Chess960-nn>
 
 ## docs
 
@@ -35,11 +47,11 @@ uv run python scripts/dashboard.py \
 
 Then open <http://127.0.0.1:8000/>.
 
-### Hosting the public-facing site
+### Hosting
 
-The static **Overview** tab is deployable to any static host (Netlify, Vercel, GitHub Pages, etc.). The `netlify.toml` at the project root sets `publish = "web"` and ships sensible security headers.
+The live demo runs on **Hugging Face Spaces** (Docker SDK, CPU free tier). The model checkpoint is fetched from a GitHub Release at build time, so the deployed image is self-contained. See [`Dockerfile`](./Dockerfile) for the build, and `requirements-deploy.txt` for the CPU-only Python deps.
 
-The interactive **Play / Watch** tabs require the Python backend (FastAPI + PyTorch + Stockfish). When deployed without a backend, those tabs detect the missing engine and show a "static preview — clone for live demo" banner.
+On CPU at 30 MCTS sims/move, the engine takes ~2-3 seconds per reply. Locally on a GPU at 100 sims, it's ~1-2 s.
 
 ## quickstart
 

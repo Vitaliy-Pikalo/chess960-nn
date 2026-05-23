@@ -1,0 +1,10 @@
+# Runtime deps for the Hugging Face Spaces deploy. CPU torch is installed
+# separately in the Dockerfile from the pytorch CPU index.
+python-chess>=1.999
+numpy>=1.26,<2.0
+tqdm>=4.66
+pyyaml>=6.0
+fastapi>=0.110
+uvicorn[standard]>=0.27
+pydantic>=2.6
+zstandard>=0.22

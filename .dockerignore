@@ -1,0 +1,35 @@
+# Keep the build context small. The model is fetched at build time so we
+# explicitly exclude runs/ even though .gitignore already does.
+.git
+.gitignore
+.github/
+.venv/
+venv/
+env/
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+runs/
+datasets/
+bin/
+tests/
+*.log
+*.zip
+*.exe
+*.pt
+*.ckpt
+*.onnx
+*.pgn.bz2
+*.pgn.zst
+web/node_modules/
+web/dist/
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
