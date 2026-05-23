@@ -2,98 +2,232 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>chess960-nn dashboard</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>chess960-nn — AlphaZero-style engine for Fischer Random</title>
+<meta name="description" content="An AlphaZero-style neural network engine for Chess960, trained from scratch on a single GPU. Plays at ~1600 Elo over 100 calibrated games. Play it live, watch it face Stockfish, or browse training metrics.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22><text y=%2213%22 font-size=%2214%22>♞</text></svg>">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <style>
+  /* ===== Design tokens ===== */
   :root {
-    --bg: #0f1419;
-    --panel: #1a2026;
-    --border: #2a3038;
-    --fg: #d4d8df;
-    --muted: #8a9099;
-    --accent: #4a9eff;
-    --success: #4ade80;
-    --warn: #fbbf24;
-    --danger: #f87171;
+    --bg:        #0b0e13;
+    --bg-2:      #0f1419;
+    --panel:     #161b22;
+    --panel-2:   #1c2129;
+    --panel-3:   #232a35;
+    --border:    #2a323d;
+    --border-2:  #3a4452;
+    --fg:        #e6e9ef;
+    --fg-2:      #b8c0cc;
+    --muted:     #8a93a3;
+    --accent:    #58a6ff;
+    --accent-2:  #79b8ff;
+    --success:   #56d364;
+    --warn:      #e3b341;
+    --danger:    #f85149;
+    --pink:      #f472b6;
+    --glow:      0 0 32px rgba(88, 166, 255, 0.15);
+
+    /* board palette — chosen for high contrast with bold piece outlines */
+    --sq-light:  #d9c7a4;
+    --sq-dark:   #8b6a47;
+    --sq-sel:    #6abe6a;
+    --sq-last:   #f4d35e;
+    --sq-check:  #f85149;
+    --piece-w:   #fafafa;
+    --piece-w-stroke: #0d1117;
+    --piece-b:   #1a1a1a;
+    --piece-b-stroke: #f5e9d0;
   }
   * { box-sizing: border-box; }
-  body {
+  html, body {
     margin: 0;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+    padding: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Inter", system-ui, sans-serif;
     background: var(--bg);
     color: var(--fg);
-    height: 100vh;
-    overflow: hidden;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
-  .layout {
-    display: grid;
-    grid-template-columns: 240px 1fr;
-    height: 100vh;
+  body { height: 100vh; overflow: hidden; }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+
+  /* ===== Layout shell ===== */
+  .app { display: flex; flex-direction: column; height: 100vh; }
+  header.topbar {
+    display: flex;
+    align-items: center;
+    background: linear-gradient(180deg, #11161f 0%, var(--panel) 100%);
+    border-bottom: 1px solid var(--border);
+    padding: 0 20px;
+    flex-shrink: 0;
+    height: 56px;
   }
-  aside {
-    background: var(--panel);
-    border-right: 1px solid var(--border);
-    padding: 16px;
-    overflow-y: auto;
+  .brand {
+    font-weight: 700;
+    font-size: 15px;
+    margin-right: 28px;
+    color: var(--fg);
+    display: flex;
+    align-items: center;
+    gap: 8px;
   }
-  h1 { margin: 0 0 4px 0; font-size: 16px; font-weight: 600; }
-  .sub { font-size: 12px; color: var(--muted); margin-bottom: 16px; }
+  .brand .knight {
+    display: inline-flex;
+    width: 26px; height: 26px;
+    align-items: center; justify-content: center;
+    background: linear-gradient(135deg, var(--accent), #2f80ed);
+    border-radius: 6px;
+    font-size: 16px;
+    color: white;
+  }
+  .brand .v {
+    color: var(--muted);
+    font-weight: 400;
+    font-size: 11px;
+    padding: 2px 6px;
+    background: var(--panel-3);
+    border-radius: 4px;
+  }
+  nav.tabs { display: flex; gap: 2px; flex: 1; }
+  nav.tabs button {
+    background: transparent;
+    color: var(--fg-2);
+    border: none;
+    border-bottom: 2px solid transparent;
+    padding: 16px 18px;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 500;
+    letter-spacing: 0.01em;
+    transition: color 0.15s;
+  }
+  nav.tabs button:hover { color: var(--fg); }
+  nav.tabs button.active {
+    color: var(--fg);
+    border-bottom-color: var(--accent);
+  }
+  .topbar-right { display: flex; align-items: center; gap: 12px; }
+  .engine-status {
+    font-size: 11px;
+    color: var(--muted);
+    padding: 5px 10px;
+    border-radius: 4px;
+    background: var(--panel-3);
+    border: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .engine-status::before {
+    content: '';
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--muted);
+  }
+  .engine-status.ok { color: var(--success); }
+  .engine-status.ok::before { background: var(--success); box-shadow: 0 0 6px var(--success); }
+  .engine-status.off { color: var(--warn); }
+  .engine-status.off::before { background: var(--warn); }
+  .topbar-link {
+    font-size: 12px;
+    color: var(--fg-2);
+    padding: 5px 10px;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+    background: var(--panel-3);
+  }
+  .topbar-link:hover {
+    color: var(--fg);
+    border-color: var(--border-2);
+    text-decoration: none;
+  }
+
+  /* ===== Workspace + scrolling ===== */
+  .workspace { flex: 1; overflow: hidden; display: flex; animation: fadein 0.18s ease; }
+  .workspace.train { display: grid; grid-template-columns: 240px 1fr; }
+  @keyframes fadein { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+  aside { background: var(--panel); border-right: 1px solid var(--border); padding: 18px 16px; overflow-y: auto; }
+  main { padding: 28px 32px; overflow-y: auto; flex: 1; }
+  main.home-main { padding: 0; }  /* home page handles its own padding */
+
+  /* ===== Train view sidebar ===== */
+  aside h1 { margin: 0 0 4px 0; font-size: 13px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
+  aside .sub { font-size: 11px; color: var(--muted); margin-bottom: 16px; }
   .runs-list { list-style: none; padding: 0; margin: 0; }
   .runs-list li {
-    padding: 8px 10px;
+    padding: 10px 12px;
     margin-bottom: 4px;
     border-radius: 6px;
     cursor: pointer;
     border: 1px solid transparent;
     font-size: 13px;
+    transition: all 0.1s;
   }
-  .runs-list li:hover { background: rgba(74, 158, 255, 0.08); }
-  .runs-list li.active {
-    background: rgba(74, 158, 255, 0.16);
-    border-color: var(--accent);
-  }
+  .runs-list li:hover { background: rgba(88, 166, 255, 0.08); }
+  .runs-list li.active { background: rgba(88, 166, 255, 0.16); border-color: var(--accent); }
   .run-name { font-weight: 500; }
-  .run-meta { font-size: 11px; color: var(--muted); margin-top: 2px; }
+  .run-meta { font-size: 11px; color: var(--muted); margin-top: 3px; }
   .badge {
     display: inline-block;
-    padding: 1px 6px;
+    padding: 2px 7px;
     font-size: 10px;
-    border-radius: 3px;
+    border-radius: 4px;
     margin-right: 4px;
     background: var(--border);
     color: var(--muted);
+    font-weight: 500;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
   }
-  .badge.rl { background: rgba(74, 158, 255, 0.2); color: var(--accent); }
-  .badge.pretrain { background: rgba(74, 222, 128, 0.15); color: var(--success); }
+  .badge.rl { background: rgba(88, 166, 255, 0.18); color: var(--accent); }
+  .badge.pretrain { background: rgba(86, 211, 100, 0.13); color: var(--success); }
 
-  main {
-    padding: 24px;
-    overflow-y: auto;
+  /* ===== Generic content ===== */
+  .empty {
+    color: var(--muted);
+    padding: 80px 0;
+    text-align: center;
   }
-  .empty { color: var(--muted); padding: 80px 0; text-align: center; }
-  .run-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 24px;
-  }
-  .run-header h2 { margin: 0; font-size: 20px; }
+  .run-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; }
+  .run-header h2 { margin: 0; font-size: 20px; font-weight: 600; }
   .controls { display: flex; gap: 12px; align-items: center; }
-  .auto-refresh {
-    display: flex; align-items: center; gap: 6px;
-    font-size: 12px; color: var(--muted);
-  }
-  button {
-    background: var(--border);
-    color: var(--fg);
-    border: 1px solid transparent;
-    padding: 6px 12px;
-    border-radius: 4px;
-    cursor: pointer;
-    font-size: 12px;
-  }
-  button:hover { border-color: var(--accent); }
+  .auto-refresh { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
 
+  button, button.btn {
+    background: var(--panel-3);
+    color: var(--fg);
+    border: 1px solid var(--border);
+    padding: 8px 14px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 500;
+    transition: all 0.12s;
+  }
+  button:hover, button.btn:hover {
+    background: var(--panel-2);
+    border-color: var(--border-2);
+  }
+  button.primary, button.btn.primary {
+    background: linear-gradient(180deg, #4f9cf9, #2f80ed);
+    color: white;
+    border-color: transparent;
+    box-shadow: 0 1px 0 rgba(255,255,255,0.1) inset, 0 1px 6px rgba(47, 128, 237, 0.3);
+  }
+  button.primary:hover, button.btn.primary:hover {
+    background: linear-gradient(180deg, #5fa9ff, #3a8bf2);
+    border-color: transparent;
+  }
+  button.danger, button.btn.danger {
+    background: rgba(248, 81, 73, 0.13);
+    color: var(--danger);
+    border-color: rgba(248, 81, 73, 0.3);
+  }
+  button:disabled { opacity: 0.45; cursor: not-allowed; }
+
+  /* ===== Cards / stats ===== */
   .stats-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
@@ -103,85 +237,1087 @@
   .stat-card {
     background: var(--panel);
     border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 14px 16px;
+    border-radius: 10px;
+    padding: 16px 18px;
   }
-  .stat-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
-  .stat-value { font-size: 22px; font-weight: 600; margin-top: 4px; }
-  .stat-sub { font-size: 11px; color: var(--muted); margin-top: 2px; }
+  .stat-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; font-weight: 600; }
+  .stat-value { font-size: 24px; font-weight: 700; margin-top: 6px; letter-spacing: -0.01em; }
+  .stat-sub { font-size: 11px; color: var(--muted); margin-top: 4px; }
 
   .chart-wrap {
     background: var(--panel);
     border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 16px;
+    border-radius: 10px;
+    padding: 18px;
     margin-bottom: 16px;
     height: 320px;
   }
-  .chart-title { font-size: 14px; font-weight: 500; margin-bottom: 12px; }
+  .chart-title { font-size: 13px; font-weight: 600; margin-bottom: 14px; color: var(--fg-2); }
 
   table { width: 100%; border-collapse: collapse; font-size: 13px; }
-  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); }
-  th { font-weight: 500; color: var(--muted); font-size: 11px; text-transform: uppercase; }
+  th, td { text-align: left; padding: 9px 11px; border-bottom: 1px solid var(--border); }
+  th { font-weight: 600; color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; }
   td.num { font-variant-numeric: tabular-nums; text-align: right; }
   .yes { color: var(--success); }
   .no { color: var(--danger); }
 
+  /* ===== Home / landing ===== */
+  .home {
+    max-width: 1140px;
+    margin: 0 auto;
+    padding: 48px 32px 80px;
+  }
+  .hero {
+    text-align: left;
+    margin-bottom: 48px;
+  }
+  .hero .eyebrow {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--accent);
+    background: rgba(88, 166, 255, 0.10);
+    border: 1px solid rgba(88, 166, 255, 0.25);
+    padding: 5px 12px;
+    border-radius: 20px;
+    margin-bottom: 18px;
+  }
+  .hero h1 {
+    font-size: clamp(34px, 4.4vw, 52px);
+    line-height: 1.1;
+    margin: 0 0 18px 0;
+    letter-spacing: -0.02em;
+    font-weight: 700;
+    background: linear-gradient(180deg, var(--fg) 0%, var(--fg-2) 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  .hero p.lede {
+    font-size: 17px;
+    color: var(--fg-2);
+    max-width: 780px;
+    line-height: 1.6;
+    margin: 0 0 28px 0;
+  }
+  .hero .cta-row { display: flex; gap: 10px; flex-wrap: wrap; }
+  .hero .cta-row .btn {
+    padding: 10px 18px;
+    font-size: 14px;
+  }
+
+  .home-section { margin-bottom: 56px; }
+  .home-section h2 {
+    font-size: 13px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--accent);
+    margin: 0 0 4px 0;
+  }
+  .home-section h3 {
+    font-size: 24px;
+    font-weight: 600;
+    margin: 0 0 24px 0;
+    letter-spacing: -0.01em;
+  }
+
+  /* Headline stat row */
+  .headline-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 14px;
+    margin-bottom: 56px;
+  }
+  .headline-card {
+    background: linear-gradient(180deg, var(--panel), var(--bg-2));
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 22px 22px;
+    position: relative;
+    overflow: hidden;
+  }
+  .headline-card::after {
+    content: '';
+    position: absolute;
+    inset: -1px;
+    border-radius: 12px;
+    background: linear-gradient(180deg, rgba(88,166,255,0.18), transparent 40%);
+    pointer-events: none;
+    opacity: 0.6;
+  }
+  .headline-card .v {
+    font-size: 32px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    color: var(--fg);
+    margin-bottom: 4px;
+    position: relative;
+    z-index: 1;
+  }
+  .headline-card .l {
+    font-size: 12px;
+    color: var(--muted);
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    font-weight: 600;
+    position: relative;
+    z-index: 1;
+  }
+  .headline-card .h {
+    font-size: 11px;
+    color: var(--fg-2);
+    margin-top: 6px;
+    line-height: 1.5;
+    position: relative;
+    z-index: 1;
+  }
+
+  /* Two-column "How it works" */
+  .twocol {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 32px;
+  }
+  @media (max-width: 900px) { .twocol { grid-template-columns: 1fr; } }
+  .prose {
+    color: var(--fg-2);
+    line-height: 1.65;
+    font-size: 14px;
+  }
+  .prose p { margin: 0 0 14px 0; }
+  .prose strong { color: var(--fg); font-weight: 600; }
+  .prose code {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    background: var(--panel-3);
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-size: 12px;
+    color: var(--accent-2);
+  }
+
+  /* Architecture diagram (HTML/CSS only) */
+  .arch {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 28px;
+  }
+  .arch-stack {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0;
+  }
+  .arch-box {
+    background: var(--panel-2);
+    border: 1px solid var(--border-2);
+    border-radius: 8px;
+    padding: 14px 16px;
+  }
+  .arch-box .t { font-size: 13px; font-weight: 600; color: var(--fg); }
+  .arch-box .d { font-size: 11px; color: var(--muted); margin-top: 4px; line-height: 1.4; }
+  .arch-arrow {
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--border-2);
+    font-size: 14px;
+  }
+  .arch-box.accent { border-color: var(--accent); background: rgba(88, 166, 255, 0.08); }
+  .arch-box.accent .t { color: var(--accent); }
+
+  /* Results table for home */
+  .results-table {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+  .results-table table { font-size: 13px; }
+  .results-table th, .results-table td { padding: 10px 14px; }
+  .results-table th:first-child, .results-table td:first-child { padding-left: 18px; }
+  .results-table .bar {
+    display: inline-block;
+    height: 6px;
+    border-radius: 3px;
+    background: linear-gradient(90deg, var(--accent), var(--accent-2));
+    vertical-align: middle;
+    margin-right: 6px;
+  }
+
+  /* Tech chips */
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    padding: 5px 11px;
+    font-size: 12px;
+    border-radius: 999px;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    color: var(--fg-2);
+  }
+
+  /* CTAs */
+  .cta-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 14px;
+  }
+  .cta-card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 22px;
+    cursor: pointer;
+    transition: all 0.15s;
+    text-decoration: none;
+    color: inherit;
+    display: block;
+  }
+  .cta-card:hover {
+    border-color: var(--accent);
+    transform: translateY(-2px);
+    box-shadow: var(--glow);
+    text-decoration: none;
+  }
+  .cta-card .icon {
+    font-size: 28px;
+    margin-bottom: 12px;
+  }
+  .cta-card .t { font-size: 15px; font-weight: 600; color: var(--fg); margin-bottom: 4px; }
+  .cta-card .d { font-size: 12px; color: var(--muted); line-height: 1.5; }
+
+  /* Footer */
+  footer.site-footer {
+    border-top: 1px solid var(--border);
+    padding: 28px 0 16px;
+    margin-top: 56px;
+    color: var(--muted);
+    font-size: 12px;
+    display: flex;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+
+  /* ===== Demo (Play / Watch) ===== */
+  .demo-layout {
+    display: grid;
+    grid-template-columns: minmax(420px, 560px) 1fr;
+    gap: 24px;
+    align-items: start;
+    max-width: 1140px;
+  }
+  @media (max-width: 980px) { .demo-layout { grid-template-columns: 1fr; } }
+  .board-card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 18px;
+  }
+  .panel-card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+  }
+  .panel-card h3 {
+    margin: 0 0 14px 0;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+  .panel-card .intro {
+    font-size: 13px;
+    color: var(--fg-2);
+    line-height: 1.55;
+    margin-bottom: 18px;
+  }
+  .form-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 11px;
+  }
+  .form-row label { font-size: 12px; color: var(--muted); min-width: 110px; font-weight: 500; }
+  .form-row input, .form-row select {
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    color: var(--fg);
+    padding: 7px 10px;
+    border-radius: 6px;
+    font-size: 13px;
+    flex: 1;
+    font-family: inherit;
+  }
+  .form-row input:focus, .form-row select:focus {
+    outline: none;
+    border-color: var(--accent);
+  }
+  .form-row .hint { font-size: 11px; color: var(--muted); }
+
+  /* ===== Chess board ===== */
+  .board {
+    width: 100%;
+    aspect-ratio: 1 / 1;
+    display: grid;
+    grid-template-columns: repeat(8, 1fr);
+    grid-template-rows: repeat(8, 1fr);
+    border: 2px solid var(--border-2);
+    border-radius: 8px;
+    overflow: hidden;
+    user-select: none;
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
+  }
+  .sq {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: clamp(28px, 6.2vw, 56px);
+    line-height: 1;
+    transition: background-color 0.08s;
+  }
+  .sq.light { background: var(--sq-light); }
+  .sq.dark  { background: var(--sq-dark); }
+  .sq.sel   { background: var(--sq-sel) !important; }
+  .sq.last-from, .sq.last-to { background: var(--sq-last) !important; }
+  .sq.in-check { background: var(--sq-check) !important; }
+  .sq .coord {
+    position: absolute;
+    bottom: 1px;
+    right: 4px;
+    font-size: 9px;
+    font-weight: 600;
+    color: rgba(0,0,0,0.55);
+    pointer-events: none;
+    letter-spacing: 0.02em;
+  }
+  .sq.dark .coord { color: rgba(255,255,255,0.7); }
+
+  /* Strong stroke around pieces so white reads on light and black reads on dark. */
+  .sq .piece {
+    pointer-events: none;
+    line-height: 1;
+    font-weight: 400;
+    transition: transform 0.08s;
+  }
+  .sq .piece.white {
+    color: var(--piece-w);
+    text-shadow:
+      -1.5px -1.5px 0 var(--piece-w-stroke),
+       1.5px -1.5px 0 var(--piece-w-stroke),
+      -1.5px  1.5px 0 var(--piece-w-stroke),
+       1.5px  1.5px 0 var(--piece-w-stroke),
+       0   -1.5px 0 var(--piece-w-stroke),
+       0    1.5px 0 var(--piece-w-stroke),
+      -1.5px  0   0 var(--piece-w-stroke),
+       1.5px  0   0 var(--piece-w-stroke),
+       0 2px 4px rgba(0, 0, 0, 0.35);
+  }
+  .sq .piece.black {
+    color: var(--piece-b);
+    text-shadow:
+      -1px -1px 0 var(--piece-b-stroke),
+       1px -1px 0 var(--piece-b-stroke),
+      -1px  1px 0 var(--piece-b-stroke),
+       1px  1px 0 var(--piece-b-stroke),
+       0 1px 3px rgba(0, 0, 0, 0.5);
+  }
+  .sq:hover .piece { transform: scale(1.06); }
+
+  /* Move list */
+  .move-list {
+    max-height: 360px;
+    overflow-y: auto;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 10px 14px;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 12px;
+    line-height: 1.7;
+  }
+  .move-list .pair { display: flex; gap: 10px; align-items: center; }
+  .move-list .num { color: var(--muted); width: 26px; text-align: right; }
+  .move-list .w, .move-list .b { width: 72px; }
+  .status-line {
+    font-size: 13px;
+    color: var(--muted);
+    margin: 14px 0 4px;
+    min-height: 1.4em;
+    font-weight: 500;
+  }
+  .status-line.active { color: var(--accent); }
+  .status-line.win { color: var(--success); }
+  .status-line.loss { color: var(--danger); }
+
+  .actor-tag {
+    display: inline-block;
+    font-size: 9px;
+    padding: 2px 5px;
+    border-radius: 3px;
+    margin-left: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-weight: 600;
+  }
+  .actor-tag.nn { background: rgba(88, 166, 255, 0.18); color: var(--accent); }
+  .actor-tag.sf { background: rgba(86, 211, 100, 0.15); color: var(--success); }
+
   .toggle { display: flex; align-items: center; gap: 6px; cursor: pointer; }
   .toggle input { cursor: pointer; }
+
+  /* Static-mode banner for play/watch when no backend */
+  .static-banner {
+    background: linear-gradient(180deg, rgba(227, 179, 65, 0.08), rgba(227, 179, 65, 0.02));
+    border: 1px solid rgba(227, 179, 65, 0.3);
+    border-radius: 10px;
+    padding: 22px 24px;
+    margin-bottom: 24px;
+    max-width: 1140px;
+  }
+  .static-banner .t {
+    font-weight: 600;
+    color: var(--warn);
+    font-size: 14px;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .static-banner .d { font-size: 13px; color: var(--fg-2); line-height: 1.6; }
+  .static-banner code {
+    background: var(--panel-3);
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 12px;
+    color: var(--accent-2);
+  }
+
+  /* Promotion modal */
+  .modal-bg {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.65);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 100;
+    backdrop-filter: blur(2px);
+  }
+  .modal {
+    background: var(--panel);
+    border: 1px solid var(--border-2);
+    border-radius: 12px;
+    padding: 24px;
+    min-width: 280px;
+    box-shadow: 0 24px 64px rgba(0, 0, 0, 0.5);
+  }
+  .modal h3 { margin: 0 0 16px 0; font-size: 15px; font-weight: 600; }
+  .modal .choices { display: flex; gap: 8px; }
+  .modal .choices button {
+    flex: 1; font-size: 32px; padding: 14px;
+  }
 </style>
 </head>
 <body>
-<div class="layout">
-  <aside>
-    <h1>chess960-nn</h1>
-    <div class="sub">live training dashboard</div>
-    <ul class="runs-list" id="runsList"></ul>
-  </aside>
-  <main>
-    <div id="content">
-      <div class="empty">pick a run from the sidebar</div>
+<div class="app">
+  <header class="topbar">
+    <div class="brand">
+      <span class="knight">♞</span>
+      chess960-nn
+      <span class="v">v0.2</span>
     </div>
-  </main>
+    <nav class="tabs" id="tabs">
+      <button data-tab="home" class="active">overview</button>
+      <button data-tab="play">play vs engine</button>
+      <button data-tab="watch">watch vs stockfish</button>
+      <button data-tab="train">training</button>
+    </nav>
+    <div class="topbar-right">
+      <div id="engineStatus" class="engine-status">checking…</div>
+      <a class="topbar-link" id="repoLink" href="https://github.com/Vitaliy-Pikalo/chess960-nn" target="_blank" rel="noopener">github ↗</a>
+    </div>
+  </header>
+
+  <!-- ==================== HOME / OVERVIEW ==================== -->
+  <div class="workspace" id="view-home">
+    <main class="home-main">
+      <div class="home">
+        <section class="hero">
+          <div class="eyebrow">portfolio project · 2026</div>
+          <h1>An AlphaZero-style engine for Chess960, built from scratch on a single GPU.</h1>
+          <p class="lede">
+            A neural network chess engine for Fischer Random — one of the 960 randomized starting positions —
+            trained from scratch via supervised pretraining on Lichess master games plus AlphaZero-style RL self-play.
+            Plays at <strong>~1600 Elo</strong> measured over 100 calibrated games against Stockfish.
+            This site is the live demo: <strong>play it</strong>, <strong>watch it face Stockfish</strong>, or
+            <strong>browse training metrics</strong>.
+          </p>
+          <div class="cta-row">
+            <button class="btn primary" onclick="showTab('play')">play the engine →</button>
+            <button class="btn" onclick="showTab('watch')">watch a match</button>
+            <a class="btn" href="https://github.com/Vitaliy-Pikalo/chess960-nn" target="_blank" rel="noopener">view source ↗</a>
+          </div>
+        </section>
+
+        <section class="headline-stats">
+          <div class="headline-card">
+            <div class="v">~1600</div>
+            <div class="l">final elo</div>
+            <div class="h">measured vs stockfish, 100 games, 5 skill levels</div>
+          </div>
+          <div class="headline-card">
+            <div class="v">6.7 M</div>
+            <div class="l">parameters</div>
+            <div class="h">10-block resnet, 192 filters, policy + value heads</div>
+          </div>
+          <div class="headline-card">
+            <div class="v">6.4 M</div>
+            <div class="l">pretrain positions</div>
+            <div class="h">lichess master games, 5 epochs supervised</div>
+          </div>
+          <div class="headline-card">
+            <div class="v">1 × 3060 Ti</div>
+            <div class="l">hardware</div>
+            <div class="h">8 GB vram, single workstation, ~5 h compute</div>
+          </div>
+        </section>
+
+        <section class="home-section">
+          <h2>how it works</h2>
+          <h3>Three things, working in a loop.</h3>
+          <div class="twocol">
+            <div class="prose">
+              <p>
+                The engine has three pieces. A <strong>neural network</strong> looks at a position
+                and outputs (a) a move probability for every legal move and (b) an estimate of who
+                is winning. <strong>Monte Carlo Tree Search</strong> uses those guesses to simulate
+                many possible futures and refine the move choice. A <strong>self-play training
+                loop</strong> generates new games and uses them to improve the network.
+              </p>
+              <p>
+                The architecture is a standard residual <strong>conv-net</strong> with <code>10</code>
+                blocks of <code>192</code> filters — roughly <code>6.7M</code> parameters. Two output
+                heads: a policy head (one probability per possible move) and a value head (a single
+                number in <code>[-1, +1]</code>).
+              </p>
+              <p>
+                After supervised pretraining on Lichess master games, the RL loop ran 5 iterations
+                of: generate self-play games → train on the new data → play a 10-game match against
+                the current champion → promote only if score ≥ <code>0.55</code>. The <strong>gated
+                promotion</strong> is the safety net — it caught a regression at iteration 1 that
+                the self-play stats alone would have hidden.
+              </p>
+            </div>
+            <div class="arch">
+              <div class="arch-stack">
+                <div class="arch-box">
+                  <div class="t">Board encoding</div>
+                  <div class="d">FEN → 8×8 plane stack (one plane per piece type, castling, side to move)</div>
+                </div>
+                <div class="arch-arrow">↓</div>
+                <div class="arch-box accent">
+                  <div class="t">Neural network</div>
+                  <div class="d">10 × residual conv blocks, 192 filters → policy head + value head</div>
+                </div>
+                <div class="arch-arrow">↓</div>
+                <div class="arch-box">
+                  <div class="t">MCTS (PUCT)</div>
+                  <div class="d">100 sims/move during training, 800 in AlphaZero proper. Picks the most-visited move at the root.</div>
+                </div>
+                <div class="arch-arrow">↓</div>
+                <div class="arch-box">
+                  <div class="t">Self-play</div>
+                  <div class="d">Engine plays itself; (position, MCTS visits, game result) → training data</div>
+                </div>
+                <div class="arch-arrow">↓</div>
+                <div class="arch-box">
+                  <div class="t">Train + gate</div>
+                  <div class="d">Update weights, play 10-game match vs champion, promote only if score ≥ 0.55</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="home-section">
+          <h2>results</h2>
+          <h3>Final eval vs Stockfish — 100 games across 5 calibrated skill levels.</h3>
+          <div class="results-table">
+            <table>
+              <thead>
+                <tr><th>stockfish skill</th><th>sf elo</th><th>games</th><th>score</th><th>nn elo est.</th></tr>
+              </thead>
+              <tbody>
+                <tr><td>0</td><td>1320</td><td>20</td><td><span class="bar" style="width:80px;"></span>0.900 (17W / 1L / 2D)</td><td class="num">1702</td></tr>
+                <tr><td>3</td><td>1600</td><td>20</td><td><span class="bar" style="width:40px;"></span>0.450 (8W / 10L / 2D)</td><td class="num">1565</td></tr>
+                <tr><td>5</td><td>1787</td><td>20</td><td><span class="bar" style="width:27px;"></span>0.300 (3W / 11L / 6D)</td><td class="num">1640</td></tr>
+                <tr><td>7</td><td>1974</td><td>20</td><td><span class="bar" style="width:14px;"></span>0.150 (1W / 15L / 4D)</td><td class="num">1673</td></tr>
+                <tr><td>10</td><td>2255</td><td>20</td><td><span class="bar" style="width:2px;"></span>0.025 (0W / 19L / 1D)</td><td class="num">1619</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="prose" style="margin-top: 14px;">
+            Cross-over point is around Stockfish skill 3 (~1600 Elo). The engine reliably beats
+            below-club-level Stockfish, holds its own around 1500-1700, and loses cleanly above that.
+            An earlier 4-game-per-level eval suggested ~1876 Elo — that estimate was discarded once
+            the 100-game eval showed the smaller sample was within ±400 Elo of noise.
+          </p>
+        </section>
+
+        <section class="home-section">
+          <h2>try it</h2>
+          <h3>Three views.</h3>
+          <div class="cta-grid">
+            <a class="cta-card" onclick="showTab('play'); return false;" href="#play">
+              <div class="icon">♟️</div>
+              <div class="t">Play the engine</div>
+              <div class="d">A full Chess960 board. Choose your color, pick a starting position, make moves; the engine replies with MCTS-backed inference. Castling on king→rook clicks.</div>
+            </a>
+            <a class="cta-card" onclick="showTab('watch'); return false;" href="#watch">
+              <div class="icon">📺</div>
+              <div class="t">Watch vs Stockfish</div>
+              <div class="d">Live NN-vs-Stockfish game streamed move-by-move. Pick a skill level (0-20). Each move is annotated by who played it.</div>
+            </a>
+            <a class="cta-card" onclick="showTab('train'); return false;" href="#train">
+              <div class="icon">📈</div>
+              <div class="t">Training metrics</div>
+              <div class="d">Loss curves, accuracy, RL iteration summaries. Every run from supervised pretrain through 5 RL iterations is here.</div>
+            </a>
+          </div>
+        </section>
+
+        <section class="home-section">
+          <h2>stack</h2>
+          <h3>Built with.</h3>
+          <div class="chips">
+            <span class="chip">Python 3.11</span>
+            <span class="chip">PyTorch (CUDA 12)</span>
+            <span class="chip">python-chess</span>
+            <span class="chip">Stockfish 16 (AVX2)</span>
+            <span class="chip">FastAPI + Uvicorn</span>
+            <span class="chip">uv</span>
+            <span class="chip">NumPy</span>
+            <span class="chip">Chart.js</span>
+            <span class="chip">vanilla JS + CSS</span>
+          </div>
+        </section>
+
+        <section class="home-section">
+          <h2>honest assessment</h2>
+          <h3>The engineering is the deliverable.</h3>
+          <div class="prose">
+            <p>
+              The original goal was 2000+ Elo to beat strong club players. The engine lands ~400 Elo
+              short. Diagnosis: the architecture is sound; the limit is compute budget. Pretraining
+              was the source of strength — the RL loop never had enough self-play data per iteration
+              (30 games vs AlphaZero's thousands) or MCTS budget (100 sims vs 800) to push past the
+              pretrained baseline.
+            </p>
+            <p>
+              The two pieces I'm proudest of are the <strong>gating mechanism</strong> (which caught a
+              real regression that self-play stats alone would have hidden) and the <strong>decision
+              to redo evaluation</strong> when an early "+200 Elo" claim looked too good — the
+              100-game eval confirmed the smaller samples were noise. Honest measurement is harder
+              than honest training.
+            </p>
+            <p>
+              Full writeup with iteration-by-iteration results, what worked, what didn't, and what
+              I would change next time is in
+              <a href="https://github.com/Vitaliy-Pikalo/chess960-nn/blob/main/SUMMARY.md" target="_blank" rel="noopener">SUMMARY.md</a>.
+              Plain-language walkthrough of the architecture is in
+              <a href="https://github.com/Vitaliy-Pikalo/chess960-nn/blob/main/EXPLAINER.md" target="_blank" rel="noopener">EXPLAINER.md</a>.
+            </p>
+          </div>
+        </section>
+
+        <footer class="site-footer">
+          <div>
+            <strong style="color: var(--fg);">chess960-nn</strong> · built by
+            <a href="https://github.com/Vitaliy-Pikalo" target="_blank" rel="noopener">Vitaliy Pikalo</a>
+          </div>
+          <div>
+            <a href="https://github.com/Vitaliy-Pikalo/chess960-nn" target="_blank" rel="noopener">source on github ↗</a>
+            ·
+            <a href="https://github.com/Vitaliy-Pikalo/chess960-nn/blob/main/SUMMARY.md" target="_blank" rel="noopener">summary</a>
+            ·
+            <a href="https://github.com/Vitaliy-Pikalo/chess960-nn/blob/main/EXPLAINER.md" target="_blank" rel="noopener">explainer</a>
+          </div>
+        </footer>
+      </div>
+    </main>
+  </div>
+
+  <!-- ==================== TRAIN VIEW ==================== -->
+  <div class="workspace train" id="view-train" style="display:none;">
+    <aside>
+      <h1>training runs</h1>
+      <div class="sub">supervised + reinforcement learning</div>
+      <ul class="runs-list" id="runsList"></ul>
+    </aside>
+    <main>
+      <div id="trainContent">
+        <div class="empty">pick a run from the sidebar</div>
+      </div>
+    </main>
+  </div>
+
+  <!-- ==================== PLAY VIEW ==================== -->
+  <div class="workspace" id="view-play" style="display:none;">
+    <main>
+      <div id="playStaticBanner" style="display:none;" class="static-banner">
+        <div class="t">⚠️ This is a static preview — the live engine is local-only.</div>
+        <div class="d">
+          The play feature needs the inference backend running on your machine. To play live, clone the repo
+          and run <code>DEMO launcher.ps1</code>. The board below is interactive but moves can't be sent to the
+          engine in this hosted preview.
+        </div>
+      </div>
+      <div class="demo-layout">
+        <div class="board-card">
+          <div class="board" id="playBoard"></div>
+          <div class="status-line" id="playStatus">click "new game" to start.</div>
+        </div>
+        <div class="panel-card">
+          <h3>play vs the engine</h3>
+          <p class="intro">
+            You play one of the 960 Chess960 starting positions against the trained network at ~100 MCTS
+            simulations/move. Click a piece, then its destination. Castling in Chess960 is "king takes own rook"
+            — drop your king onto your rook square.
+          </p>
+          <div class="form-row">
+            <label>you play</label>
+            <select id="playColor">
+              <option value="white" selected>white</option>
+              <option value="black">black</option>
+              <option value="random">random</option>
+            </select>
+          </div>
+          <div class="form-row">
+            <label>start position</label>
+            <select id="playSp">
+              <option value="518" selected>standard (518)</option>
+              <option value="random">random chess960</option>
+            </select>
+            <span class="hint">0–959</span>
+          </div>
+          <div class="form-row" style="margin-top: 18px; gap: 8px;">
+            <button class="btn primary" id="playNewBtn">new game</button>
+            <button class="btn danger" id="playResignBtn" disabled>resign</button>
+          </div>
+          <div style="margin-top: 22px;">
+            <h3>moves</h3>
+            <div class="move-list" id="playMoveList"></div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- ==================== WATCH VIEW ==================== -->
+  <div class="workspace" id="view-watch" style="display:none;">
+    <main>
+      <div id="watchStaticBanner" style="display:none;" class="static-banner">
+        <div class="t">⚠️ This is a static preview — the live engine is local-only.</div>
+        <div class="d">
+          Watch mode needs both the inference backend AND Stockfish running on your machine. To see
+          live games, clone the repo and run <code>DEMO launcher.ps1</code>.
+        </div>
+      </div>
+      <div class="demo-layout">
+        <div class="board-card">
+          <div class="board" id="watchBoard"></div>
+          <div class="status-line" id="watchStatus">configure and click "start match".</div>
+        </div>
+        <div class="panel-card">
+          <h3>nn vs stockfish</h3>
+          <p class="intro">
+            The trained network plays a full game against Stockfish at the skill level you pick.
+            Moves stream live from the server. Skill 0 is roughly 1320 Elo; skill 10 is around 2255.
+            The network reliably handles skill 0-3, struggles at 5+, and loses cleanly past 7.
+          </p>
+          <div class="form-row">
+            <label>stockfish skill</label>
+            <select id="watchSkill">
+              <option value="0">0 (~1320 elo)</option>
+              <option value="3">3 (~1600 elo)</option>
+              <option value="5" selected>5 (~1787 elo)</option>
+              <option value="7">7 (~1974 elo)</option>
+              <option value="10">10 (~2255 elo)</option>
+            </select>
+          </div>
+          <div class="form-row">
+            <label>nn plays</label>
+            <select id="watchNNColor">
+              <option value="random" selected>random</option>
+              <option value="true">white</option>
+              <option value="false">black</option>
+            </select>
+          </div>
+          <div class="form-row">
+            <label>start position</label>
+            <select id="watchSp">
+              <option value="518" selected>standard (518)</option>
+              <option value="random">random chess960</option>
+            </select>
+          </div>
+          <div class="form-row">
+            <label>sf movetime</label>
+            <input type="number" id="watchMovetime" value="0.3" step="0.05" min="0.05" max="5">
+            <span class="hint">seconds</span>
+          </div>
+          <div class="form-row" style="margin-top: 18px; gap: 8px;">
+            <button class="btn primary" id="watchStartBtn">start match</button>
+            <button class="btn danger" id="watchStopBtn" disabled>stop watching</button>
+          </div>
+          <div style="margin-top: 22px;">
+            <h3>moves</h3>
+            <div class="move-list" id="watchMoveList"></div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
 </div>
+
+<!-- Promotion picker (hidden by default) -->
+<div id="promoModal" style="display:none;"></div>
 
 <script>
 (() => {
-  const state = {
-    runs: [],
-    selected: null,
-    autoRefresh: true,
-    refreshTimer: null,
-    charts: {},
-  };
+'use strict';
 
-  const $list = document.getElementById('runsList');
-  const $content = document.getElementById('content');
+// ============================================================
+// Tab switching
+// ============================================================
+const tabs = document.querySelectorAll('#tabs button');
+const views = {
+  home:  document.getElementById('view-home'),
+  train: document.getElementById('view-train'),
+  play:  document.getElementById('view-play'),
+  watch: document.getElementById('view-watch'),
+};
+function showTab(name) {
+  if (!views[name]) name = 'home';
+  for (const t of tabs) t.classList.toggle('active', t.dataset.tab === name);
+  for (const [k, v] of Object.entries(views)) v.style.display = (k === name) ? '' : 'none';
+  if (name === 'train' && !TRAIN.loaded) TRAIN.init();
+  if (name === 'play')  PLAY.onShow();
+  if (name === 'watch') WATCH.onShow();
+  // Update url hash without scrolling
+  history.replaceState(null, '', '#' + name);
+}
+window.showTab = showTab;
+for (const t of tabs) t.onclick = () => showTab(t.dataset.tab);
 
-  async function fetchJson(url) {
+// Load tab from URL hash on first paint
+const initialHash = (location.hash || '').replace('#', '');
+if (initialHash && views[initialHash]) showTab(initialHash);
+
+// ============================================================
+// Engine status badge + static-mode detection
+// ============================================================
+let STATIC_MODE = false;
+
+async function refreshEngineStatus() {
+  const $s = document.getElementById('engineStatus');
+  try {
+    const r = await fetch('/api/engine/info');
+    if (!r.ok) throw new Error('no backend');
+    const info = await r.json();
+    if (info.demo_enabled) {
+      $s.textContent = `engine ready · ${info.n_simulations} sims`;
+      $s.classList.add('ok'); $s.classList.remove('off');
+    } else {
+      $s.textContent = 'demo disabled (no checkpoint)';
+      $s.classList.add('off'); $s.classList.remove('ok');
+      enterStaticMode();
+    }
+  } catch (e) {
+    $s.textContent = 'static preview · local demo only';
+    $s.classList.add('off'); $s.classList.remove('ok');
+    enterStaticMode();
+  }
+}
+
+function enterStaticMode() {
+  STATIC_MODE = true;
+  document.getElementById('playStaticBanner').style.display = '';
+  document.getElementById('watchStaticBanner').style.display = '';
+  document.getElementById('playNewBtn').disabled = true;
+  document.getElementById('watchStartBtn').disabled = true;
+}
+
+refreshEngineStatus();
+
+// ============================================================
+// Chess board renderer
+// ============================================================
+const PIECE_GLYPH = {
+  'K': '♔', 'Q': '♕', 'R': '♖', 'B': '♗', 'N': '♘', 'P': '♙',
+  'k': '♚', 'q': '♛', 'r': '♜', 'b': '♝', 'n': '♞', 'p': '♟',
+};
+const FILE_CHARS = 'abcdefgh';
+
+function fenToBoardArray(fen) {
+  const placement = fen.split(' ')[0];
+  const ranks = placement.split('/');
+  const arr = [];
+  for (let r = 0; r < 8; r++) {
+    const row = [];
+    for (const ch of ranks[r]) {
+      if (/\d/.test(ch)) for (let i = 0; i < parseInt(ch, 10); i++) row.push(null);
+      else row.push(ch);
+    }
+    arr.push(row);
+  }
+  return arr;
+}
+function fileRankToSquareName(file, rank) { return FILE_CHARS[file] + String(rank); }
+
+class Board {
+  constructor(rootEl, opts = {}) {
+    this.root = rootEl;
+    this.flipped = !!opts.flipped;
+    this.interactive = !!opts.interactive;
+    this.onMove = opts.onMove || null;
+    this.selected = null;
+    this.lastMove = null;
+    this.currentFen = '';
+    this.inCheckSquare = null;
+    this.squares = [];
+    this._renderEmpty();
+  }
+  _renderEmpty() {
+    this.root.innerHTML = '';
+    this.squares = [];
+    for (let r = 0; r < 8; r++) {
+      for (let c = 0; c < 8; c++) {
+        const sq = document.createElement('div');
+        const dispR = this.flipped ? 7 - r : r;
+        const dispC = this.flipped ? 7 - c : c;
+        const sqLight = ((dispR + dispC) % 2) === 0;
+        sq.className = 'sq ' + (sqLight ? 'light' : 'dark');
+        const file = dispC;
+        const rank = 8 - dispR;
+        const name = fileRankToSquareName(file, rank);
+        sq.dataset.sq = name;
+        sq.dataset.file = file;
+        sq.dataset.rank = rank;
+        if (r === 7 || c === 0) {
+          const coord = document.createElement('span');
+          coord.className = 'coord';
+          if (r === 7 && c === 0) coord.textContent = name;
+          else if (r === 7) coord.textContent = FILE_CHARS[file];
+          else coord.textContent = String(rank);
+          sq.appendChild(coord);
+        }
+        const pieceEl = document.createElement('span');
+        pieceEl.className = 'piece';
+        sq.appendChild(pieceEl);
+        if (this.interactive) sq.addEventListener('click', () => this._onClick(name));
+        this.root.appendChild(sq);
+        this.squares.push(sq);
+      }
+    }
+  }
+  setFen(fen) {
+    this.currentFen = fen;
+    const arr = fenToBoardArray(fen);
+    for (const sq of this.squares) {
+      const file = parseInt(sq.dataset.file, 10);
+      const rank = parseInt(sq.dataset.rank, 10);
+      const piece = arr[8 - rank][file];
+      const pieceEl = sq.querySelector('.piece');
+      if (piece === null) { pieceEl.textContent = ''; pieceEl.className = 'piece'; }
+      else {
+        pieceEl.textContent = PIECE_GLYPH[piece] || '?';
+        pieceEl.className = 'piece ' + (piece === piece.toUpperCase() ? 'white' : 'black');
+      }
+    }
+    this._repaintHighlights();
+  }
+  setFlipped(flipped) {
+    this.flipped = !!flipped;
+    this._renderEmpty();
+    if (this.currentFen) this.setFen(this.currentFen);
+  }
+  setLastMove(fromUci, toUci) {
+    this.lastMove = (fromUci && toUci) ? {from: fromUci, to: toUci} : null;
+    this._repaintHighlights();
+  }
+  setInCheckSquare(name) { this.inCheckSquare = name; this._repaintHighlights(); }
+  clearSelection() { this.selected = null; this._repaintHighlights(); }
+  _repaintHighlights() {
+    for (const sq of this.squares) sq.classList.remove('sel', 'last-from', 'last-to', 'in-check');
+    if (this.lastMove) {
+      this._byName(this.lastMove.from)?.classList.add('last-from');
+      this._byName(this.lastMove.to)?.classList.add('last-to');
+    }
+    if (this.selected) {
+      const name = fileRankToSquareName(this.selected.file, this.selected.rank);
+      this._byName(name)?.classList.add('sel');
+    }
+    if (this.inCheckSquare) this._byName(this.inCheckSquare)?.classList.add('in-check');
+  }
+  _byName(name) { return this.root.querySelector(`[data-sq="${name}"]`); }
+  _onClick(name) {
+    if (!this.interactive) return;
+    const sq = this._byName(name);
+    const file = parseInt(sq.dataset.file, 10);
+    const rank = parseInt(sq.dataset.rank, 10);
+    if (this.selected) {
+      const fromName = fileRankToSquareName(this.selected.file, this.selected.rank);
+      if (fromName === name) { this.clearSelection(); return; }
+      const uci = fromName + name;
+      this.clearSelection();
+      if (this.onMove) this.onMove(uci, fromName, name);
+    } else {
+      const piece = sq.querySelector('.piece').textContent;
+      if (piece) { this.selected = {file, rank}; this._repaintHighlights(); }
+    }
+  }
+}
+
+// ============================================================
+// Train view
+// ============================================================
+const TRAIN = {
+  loaded: false, runs: [], selected: null, autoRefresh: true,
+  refreshTimer: null, charts: {},
+
+  init() {
+    this.loaded = true;
+    this.loadRuns();
+    setInterval(() => this.loadRuns(), 30000);
+  },
+  async fetchJson(url) {
     const r = await fetch(url);
     if (!r.ok) throw new Error(`${url} -> ${r.status}`);
     return r.json();
-  }
-
-  async function loadRuns() {
-    try {
-      state.runs = await fetchJson('/api/runs');
-    } catch (e) {
-      state.runs = [];
-    }
-    renderRunsList();
-  }
-
-  function renderRunsList() {
+  },
+  async loadRuns() {
+    try { this.runs = await this.fetchJson('/api/runs'); }
+    catch { this.runs = []; }
+    this.renderRunsList();
+  },
+  renderRunsList() {
+    const $list = document.getElementById('runsList');
     $list.innerHTML = '';
-    if (state.runs.length === 0) {
-      $list.innerHTML = '<li style="color:var(--muted);font-size:12px;cursor:default;">no runs found</li>';
+    if (this.runs.length === 0) {
+      $list.innerHTML = '<li style="color:var(--muted);font-size:12px;cursor:default;">no runs available — start the local server to see training metrics</li>';
       return;
     }
-    for (const r of state.runs) {
+    for (const r of this.runs) {
       const li = document.createElement('li');
-      if (r.name === state.selected) li.classList.add('active');
+      if (r.name === this.selected) li.classList.add('active');
       const badge = r.type === 'rl' ? 'rl' : (r.type === 'pretrain' ? 'pretrain' : '');
       li.innerHTML = `
         <div class="run-name">${r.name}</div>
@@ -189,168 +1325,125 @@
           <span class="badge ${badge}">${r.type}</span>
           ${r.n_metric_lines ? r.n_metric_lines + ' steps' : ''}
           ${r.n_checkpoints ? ' · ' + r.n_checkpoints + ' ckpt' : ''}
-        </div>
-      `;
-      li.onclick = () => selectRun(r.name);
+        </div>`;
+      li.onclick = () => this.selectRun(r.name);
       $list.appendChild(li);
     }
-  }
+  },
+  async selectRun(name) {
+    this.selected = name;
+    this.renderRunsList();
+    await this.renderRun(name);
+    if (this.autoRefresh) this.startRefresh();
+  },
+  startRefresh() {
+    this.stopRefresh();
+    this.refreshTimer = setInterval(() => { if (this.selected) this.renderRun(this.selected, true); }, 5000);
+  },
+  stopRefresh() { if (this.refreshTimer) clearInterval(this.refreshTimer); this.refreshTimer = null; },
 
-  async function selectRun(name) {
-    state.selected = name;
-    renderRunsList();
-    await renderRun(name);
-    if (state.autoRefresh) startRefresh();
-  }
-
-  function startRefresh() {
-    stopRefresh();
-    state.refreshTimer = setInterval(() => {
-      if (state.selected) renderRun(state.selected, /*incremental=*/true);
-    }, 5000);
-  }
-  function stopRefresh() {
-    if (state.refreshTimer) clearInterval(state.refreshTimer);
-    state.refreshTimer = null;
-  }
-
-  async function renderRun(name, incremental) {
+  async renderRun(name, incremental) {
+    const $content = document.getElementById('trainContent');
     let info, metrics, summary;
     try {
       [info, metrics, summary] = await Promise.all([
-        fetchJson(`/api/runs/${encodeURIComponent(name)}/info`),
-        fetchJson(`/api/runs/${encodeURIComponent(name)}/metrics`),
-        fetchJson(`/api/runs/${encodeURIComponent(name)}/summary`),
+        this.fetchJson(`/api/runs/${encodeURIComponent(name)}/info`),
+        this.fetchJson(`/api/runs/${encodeURIComponent(name)}/metrics`),
+        this.fetchJson(`/api/runs/${encodeURIComponent(name)}/summary`),
       ]);
-    } catch (e) {
-      $content.innerHTML = `<div class="empty">failed to load run: ${e.message}</div>`;
-      return;
-    }
-
-    // Re-render UI only on full select (not on incremental refresh).
-    if (!incremental || !document.getElementById('mainView')) {
-      buildLayout(name, info);
-    }
-    updateStats(info, metrics, summary);
-    updateCharts(metrics, info.type);
-    updateSummaryTable(summary, info.type);
-  }
-
-  function buildLayout(name, info) {
+    } catch (e) { $content.innerHTML = `<div class="empty">failed to load run: ${e.message}</div>`; return; }
+    if (!incremental || !document.getElementById('mainView')) this.buildLayout(name, info);
+    this.updateStats(info, metrics, summary);
+    this.updateCharts(metrics, info.type);
+    this.updateSummaryTable(summary, info.type);
+  },
+  buildLayout(name, info) {
+    const $content = document.getElementById('trainContent');
     const isRL = info.type === 'rl';
     $content.innerHTML = `
       <div id="mainView">
         <div class="run-header">
           <h2>${name} <span class="badge ${info.type}">${info.type}</span></h2>
           <div class="controls">
-            <label class="toggle"><input type="checkbox" id="autoToggle" ${state.autoRefresh ? 'checked' : ''}> auto-refresh</label>
+            <label class="toggle"><input type="checkbox" id="autoToggle" ${this.autoRefresh ? 'checked' : ''}> auto-refresh</label>
             <button id="refreshBtn">refresh</button>
           </div>
         </div>
         <div class="stats-grid" id="statsGrid"></div>
-        ${info.type === 'pretrain' || info.type === 'unknown' ? `
+        ${(info.type === 'pretrain' || info.type === 'unknown') ? `
           <div class="chart-wrap"><div class="chart-title">loss curves</div><canvas id="lossChart"></canvas></div>
           <div class="chart-wrap"><div class="chart-title">top-1 accuracy</div><canvas id="accChart"></canvas></div>
         ` : ''}
         ${isRL ? '<div id="summaryTable"></div>' : ''}
-      </div>
-    `;
+      </div>`;
     document.getElementById('autoToggle').onchange = (ev) => {
-      state.autoRefresh = ev.target.checked;
-      if (state.autoRefresh) startRefresh(); else stopRefresh();
+      this.autoRefresh = ev.target.checked;
+      if (this.autoRefresh) this.startRefresh(); else this.stopRefresh();
     };
-    document.getElementById('refreshBtn').onclick = () => renderRun(name, true);
-    state.charts = {};
-  }
-
-  function updateStats(info, metrics, summary) {
-    const $sg = document.getElementById('statsGrid');
-    if (!$sg) return;
+    document.getElementById('refreshBtn').onclick = () => this.renderRun(name, true);
+    this.charts = {};
+  },
+  updateStats(info, metrics, summary) {
+    const $sg = document.getElementById('statsGrid'); if (!$sg) return;
     const cards = [];
-
     if (info.type === 'pretrain' || info.type === 'unknown') {
       const last = lastTrainRecord(metrics);
       if (last) {
-        cards.push({ label: 'last loss', value: fmt(last.loss, 3), sub: `epoch ${last.epoch+1}, step ${last.step}` });
-        cards.push({ label: 'last top1', value: pct(last.top1_acc, 2), sub: `n=${last.samples?.toLocaleString() ?? '-'}` });
-        cards.push({ label: 'last lr', value: fmt(last.lr, 5), sub: '' });
+        cards.push({label:'last loss', value: fmt(last.loss,3), sub: `epoch ${last.epoch+1}, step ${last.step}`});
+        cards.push({label:'last top1', value: pct(last.top1_acc,2), sub: `n=${last.samples?.toLocaleString() ?? '-'}`});
+        cards.push({label:'last lr', value: fmt(last.lr,5), sub: ''});
       }
       const initRec = metrics.find(m => m.phase === 'init');
       if (initRec) {
-        cards.push({ label: 'positions', value: initRec.train_positions?.toLocaleString() ?? '-', sub: `val ${(initRec.val_positions ?? 0).toLocaleString()}` });
-        cards.push({ label: 'params', value: (initRec.params ?? 0).toLocaleString(), sub: `batch ${initRec.batch_size ?? '-'}` });
+        cards.push({label:'positions', value: initRec.train_positions?.toLocaleString() ?? '-', sub: `val ${(initRec.val_positions ?? 0).toLocaleString()}`});
+        cards.push({label:'params', value: (initRec.params ?? 0).toLocaleString(), sub: `batch ${initRec.batch_size ?? '-'}`});
       }
-      cards.push({ label: 'checkpoints', value: info.n_checkpoints, sub: 'saved' });
+      cards.push({label:'checkpoints', value: info.n_checkpoints, sub: 'saved'});
     }
-
     if (info.type === 'rl') {
-      const sp = summary?.selfplay ?? {};
-      const m = summary?.match ?? {};
-      cards.push({ label: 'self-play', value: `${sp.W ?? 0}/${sp.L ?? 0}/${sp.D ?? 0}`, sub: `${sp.games ?? 0} games, ${sp.positions ?? 0} pos` });
-      cards.push({ label: 'train loss', value: fmt(summary?.train?.loss, 3), sub: `${summary?.train?.steps ?? 0} steps` });
-      cards.push({ label: 'match score', value: fmt(m.score, 3), sub: `${m.wins ?? 0}W/${m.losses ?? 0}L/${m.draws ?? 0}D` });
-      cards.push({ label: 'promoted', value: summary?.promoted ? 'yes' : 'no', sub: `threshold ${summary?.promote_threshold ?? '-'}`, color: summary?.promoted ? 'yes' : 'no' });
+      const sp = summary?.selfplay ?? {}, m = summary?.match ?? {};
+      cards.push({label:'self-play', value: `${sp.W ?? 0}/${sp.L ?? 0}/${sp.D ?? 0}`, sub: `${sp.games ?? 0} games, ${sp.positions ?? 0} pos`});
+      cards.push({label:'train loss', value: fmt(summary?.train?.loss, 3), sub: `${summary?.train?.steps ?? 0} steps`});
+      cards.push({label:'match score', value: fmt(m.score, 3), sub: `${m.wins ?? 0}W/${m.losses ?? 0}L/${m.draws ?? 0}D`});
+      cards.push({label:'promoted', value: summary?.promoted ? 'yes' : 'no', sub: `threshold ${summary?.promote_threshold ?? '-'}`, color: summary?.promoted ? 'yes' : 'no'});
     }
-
     $sg.innerHTML = cards.map(c => `
       <div class="stat-card">
         <div class="stat-label">${c.label}</div>
         <div class="stat-value ${c.color ?? ''}">${c.value}</div>
         ${c.sub ? `<div class="stat-sub">${c.sub}</div>` : ''}
-      </div>
-    `).join('');
-  }
-
-  function updateCharts(metrics, runType) {
+      </div>`).join('');
+  },
+  updateCharts(metrics, runType) {
     if (runType !== 'pretrain' && runType !== 'unknown') return;
     const $lossCanvas = document.getElementById('lossChart');
-    const $accCanvas = document.getElementById('accChart');
+    const $accCanvas  = document.getElementById('accChart');
     if (!$lossCanvas || !$accCanvas) return;
-
     const trainRecs = metrics.filter(m => m.phase === 'train');
     const valEnd = metrics.filter(m => m.phase === 'val_epoch_end');
-
     const steps = trainRecs.map(r => r.step);
-    const trainLoss = trainRecs.map(r => r.loss);
-    const trainPol = trainRecs.map(r => r.policy_loss);
-    const trainVal = trainRecs.map(r => r.value_loss);
-    const trainTop1 = trainRecs.map(r => r.top1_acc);
-
-    const valSteps = valEnd.map(r => r.step);
-    const valLoss = valEnd.map(r => r.loss);
-    const valTop1 = valEnd.map(r => r.top1_acc);
-
-    upsertChart($lossCanvas, 'loss', {
-      type: 'line',
-      data: {
-        labels: steps,
-        datasets: [
-          { label: 'train loss', data: trainLoss, borderColor: '#4a9eff', borderWidth: 1.5, pointRadius: 0, tension: 0.2 },
-          { label: 'policy loss', data: trainPol, borderColor: '#4ade80', borderWidth: 1, pointRadius: 0, tension: 0.2, borderDash: [3, 3] },
-          { label: 'value loss', data: trainVal, borderColor: '#fbbf24', borderWidth: 1, pointRadius: 0, tension: 0.2, borderDash: [3, 3] },
-          { label: 'val loss', data: alignPoints(valSteps, valLoss, steps), borderColor: '#f472b6', borderWidth: 1.5, pointRadius: 4, showLine: false },
-        ],
-      },
+    this.upsertChart($lossCanvas, 'loss', {
+      type:'line',
+      data:{labels: steps, datasets:[
+        {label:'train loss', data: trainRecs.map(r=>r.loss), borderColor:'#58a6ff', borderWidth:1.5, pointRadius:0, tension:0.2},
+        {label:'policy loss', data: trainRecs.map(r=>r.policy_loss), borderColor:'#56d364', borderWidth:1, pointRadius:0, tension:0.2, borderDash:[3,3]},
+        {label:'value loss',  data: trainRecs.map(r=>r.value_loss),  borderColor:'#e3b341', borderWidth:1, pointRadius:0, tension:0.2, borderDash:[3,3]},
+        {label:'val loss',    data: alignPoints(valEnd.map(r=>r.step), valEnd.map(r=>r.loss), steps), borderColor:'#f472b6', borderWidth:1.5, pointRadius:4, showLine:false},
+      ]},
       options: chartOpts('step'),
     });
-
-    upsertChart($accCanvas, 'acc', {
-      type: 'line',
-      data: {
-        labels: steps,
-        datasets: [
-          { label: 'train top1', data: trainTop1, borderColor: '#4a9eff', borderWidth: 1.5, pointRadius: 0, tension: 0.2 },
-          { label: 'val top1', data: alignPoints(valSteps, valTop1, steps), borderColor: '#f472b6', borderWidth: 1.5, pointRadius: 4, showLine: false },
-        ],
-      },
+    this.upsertChart($accCanvas, 'acc', {
+      type:'line',
+      data:{labels: steps, datasets:[
+        {label:'train top1', data: trainRecs.map(r=>r.top1_acc), borderColor:'#58a6ff', borderWidth:1.5, pointRadius:0, tension:0.2},
+        {label:'val top1',   data: alignPoints(valEnd.map(r=>r.step), valEnd.map(r=>r.top1_acc), steps), borderColor:'#f472b6', borderWidth:1.5, pointRadius:4, showLine:false},
+      ]},
       options: chartOpts('step'),
     });
-  }
-
-  function updateSummaryTable(summary, runType) {
+  },
+  updateSummaryTable(summary, runType) {
     if (runType !== 'rl') return;
-    const $t = document.getElementById('summaryTable');
-    if (!$t) return;
+    const $t = document.getElementById('summaryTable'); if (!$t) return;
     $t.innerHTML = `
       <div class="chart-wrap" style="height:auto;">
         <div class="chart-title">iteration details</div>
@@ -367,61 +1460,293 @@
           <tr><td>gate</td><td>promoted</td><td class="num ${summary?.promoted ? 'yes' : 'no'}">${summary?.promoted ? 'YES' : 'no'}</td></tr>
           <tr><td></td><td>threshold</td><td class="num">${summary?.promote_threshold ?? '-'}</td></tr>
         </table>
-      </div>
-    `;
-  }
-
-  function upsertChart(canvas, id, cfg) {
-    if (state.charts[id]) {
-      const c = state.charts[id];
+      </div>`;
+  },
+  upsertChart(canvas, id, cfg) {
+    if (this.charts[id]) {
+      const c = this.charts[id];
       c.data.labels = cfg.data.labels;
       c.data.datasets = cfg.data.datasets;
       c.update('none');
-    } else {
-      state.charts[id] = new Chart(canvas, cfg);
+    } else { this.charts[id] = new Chart(canvas, cfg); }
+  },
+};
+
+// ============================================================
+// Play view
+// ============================================================
+const PLAY = {
+  board: null, game: null, initialized: false,
+  onShow() {
+    if (!this.initialized) {
+      this.board = new Board(document.getElementById('playBoard'), {
+        interactive: true,
+        onMove: (uci) => this.sendMove(uci),
+      });
+      this.board.setFen('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1');
+      document.getElementById('playNewBtn').onclick = () => this.newGame();
+      document.getElementById('playResignBtn').onclick = () => this.resign();
+      this.initialized = true;
     }
-  }
-
-  function chartOpts(xLabel) {
-    return {
-      responsive: true,
-      maintainAspectRatio: false,
-      animation: false,
-      plugins: {
-        legend: { labels: { color: '#d4d8df', font: { size: 11 } } },
-      },
-      scales: {
-        x: { title: { display: true, text: xLabel, color: '#8a9099' }, ticks: { color: '#8a9099' }, grid: { color: '#2a3038' } },
-        y: { ticks: { color: '#8a9099' }, grid: { color: '#2a3038' } },
-      },
-    };
-  }
-
-  function alignPoints(xs, ys, allX) {
-    // Sparse series rendered against a dense x-axis: produce same length, nulls elsewhere.
-    const xset = new Map();
-    for (let i = 0; i < xs.length; i++) xset.set(xs[i], ys[i]);
-    return allX.map(x => xset.has(x) ? xset.get(x) : null);
-  }
-
-  function lastTrainRecord(metrics) {
-    for (let i = metrics.length - 1; i >= 0; i--) {
-      if (metrics[i].phase === 'train') return metrics[i];
+  },
+  setStatus(text, cls) {
+    const $s = document.getElementById('playStatus');
+    $s.textContent = text;
+    $s.className = 'status-line ' + (cls || '');
+  },
+  async newGame() {
+    if (STATIC_MODE) return;
+    const color = document.getElementById('playColor').value;
+    const spStr = document.getElementById('playSp').value;
+    const sp = (spStr === 'random') ? Math.floor(Math.random() * 960) : parseInt(spStr, 10);
+    this.setStatus('starting…', 'active');
+    document.getElementById('playNewBtn').disabled = true;
+    try {
+      const r = await fetch('/api/play/new_game', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({user_color: color, starting_position_index: sp}),
+      });
+      if (!r.ok) throw new Error(await r.text());
+      const data = await r.json();
+      this.applyState(data);
+      this.setStatus(this._statusText(data), 'active');
+    } catch (e) { this.setStatus('failed to start: ' + e.message, 'loss'); }
+    finally { document.getElementById('playNewBtn').disabled = false; }
+  },
+  async sendMove(uci) {
+    if (!this.game || this.game.result || STATIC_MODE) return;
+    if (this._isPossiblePromotion(uci)) {
+      const piece = await this._askPromotion();
+      if (!piece) return;
+      uci = uci + piece;
     }
+    this.setStatus('engine thinking…', 'active');
+    try {
+      const r = await fetch('/api/play/move', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({game_id: this.game.game_id, uci}),
+      });
+      if (!r.ok) {
+        const txt = await r.text();
+        this.setStatus('rejected: ' + txt, 'loss');
+        this.board.setFen(this.game.fen);
+        return;
+      }
+      const data = await r.json();
+      this.applyState(data);
+      this.setStatus(this._statusText(data), data.is_game_over ? 'win' : 'active');
+    } catch (e) { this.setStatus('error: ' + e.message, 'loss'); }
+  },
+  async resign() {
+    if (!this.game || this.game.result) return;
+    const r = await fetch('/api/play/resign', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({game_id: this.game.game_id}),
+    });
+    const data = await r.json();
+    this.applyState(data);
+    this.setStatus(this._statusText(data), 'loss');
+  },
+  applyState(data) {
+    this.game = data;
+    this.board.setFlipped(data.user_color === 'black');
+    this.board.setFen(data.fen);
+    const last = data.engine_move_uci || data.user_move_uci;
+    if (last && last.length >= 4) this.board.setLastMove(last.slice(0,2), last.slice(2,4));
+    this.board.setInCheckSquare(data.in_check ? this._findKingSquare(data.fen, data.side_to_move) : null);
+    this._renderMoveList(data.move_history_san);
+    document.getElementById('playResignBtn').disabled = !!data.result;
+  },
+  _renderMoveList(moves) {
+    const $ml = document.getElementById('playMoveList');
+    if (!moves || moves.length === 0) { $ml.innerHTML = ''; return; }
+    const html = [];
+    for (let i = 0; i < moves.length; i += 2) {
+      const num = Math.floor(i/2) + 1;
+      const w = moves[i] || '', b = moves[i+1] || '';
+      html.push(`<div class="pair"><span class="num">${num}.</span><span class="w">${w}</span><span class="b">${b}</span></div>`);
+    }
+    $ml.innerHTML = html.join('');
+    $ml.scrollTop = $ml.scrollHeight;
+  },
+  _statusText(data) {
+    if (data.result) {
+      const r = data.result, userWhite = data.user_color === 'white';
+      let outcome;
+      if (r === '1/2-1/2') outcome = `draw (${data.termination || ''})`;
+      else if ((r === '1-0' && userWhite) || (r === '0-1' && !userWhite)) outcome = `you won (${data.termination || ''})`;
+      else outcome = `engine won (${data.termination || ''})`;
+      return `game over: ${r} — ${outcome}`;
+    }
+    if (data.side_to_move === data.user_color) return data.in_check ? 'your turn (check!)' : 'your turn';
+    return 'engine thinking…';
+  },
+  _isPossiblePromotion(uci) {
+    if (uci.length !== 4) return false;
+    const fromSq = this.board._byName(uci.slice(0,2));
+    if (!fromSq) return false;
+    const piece = fromSq.querySelector('.piece').textContent;
+    if (piece !== PIECE_GLYPH['P'] && piece !== PIECE_GLYPH['p']) return false;
+    const toRank = parseInt(uci[3], 10);
+    return (piece === PIECE_GLYPH['P'] && toRank === 8) || (piece === PIECE_GLYPH['p'] && toRank === 1);
+  },
+  _askPromotion() {
+    return new Promise((resolve) => {
+      const modal = document.getElementById('promoModal');
+      modal.style.display = 'block';
+      const userWhite = this.game?.user_color === 'white';
+      const glyphs = userWhite
+        ? [['q','♕'], ['r','♖'], ['b','♗'], ['n','♘']]
+        : [['q','♛'], ['r','♜'], ['b','♝'], ['n','♞']];
+      modal.innerHTML = `
+        <div class="modal-bg">
+          <div class="modal">
+            <h3>promote pawn to:</h3>
+            <div class="choices">
+              ${glyphs.map(([k, g]) => `<button data-p="${k}">${g}</button>`).join('')}
+            </div>
+          </div>
+        </div>`;
+      const cleanup = (val) => { modal.style.display = 'none'; modal.innerHTML = ''; resolve(val); };
+      for (const b of modal.querySelectorAll('button[data-p]')) b.onclick = () => cleanup(b.dataset.p);
+    });
+  },
+  _findKingSquare(fen, sideToMove) {
+    const target = sideToMove === 'white' ? 'K' : 'k';
+    const arr = fenToBoardArray(fen);
+    for (let r = 0; r < 8; r++) for (let c = 0; c < 8; c++)
+      if (arr[r][c] === target) return fileRankToSquareName(c, 8 - r);
     return null;
-  }
+  },
+};
 
-  function fmt(n, digits) {
-    if (n == null || isNaN(n)) return '-';
-    return Number(n).toFixed(digits);
-  }
-  function pct(n, digits) {
-    if (n == null || isNaN(n)) return '-';
-    return (Number(n) * 100).toFixed(digits) + '%';
-  }
+// ============================================================
+// Watch view
+// ============================================================
+const WATCH = {
+  board: null, source: null, match: null, initialized: false, moves: [],
+  onShow() {
+    if (!this.initialized) {
+      this.board = new Board(document.getElementById('watchBoard'), {interactive: false});
+      this.board.setFen('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1');
+      document.getElementById('watchStartBtn').onclick = () => this.start();
+      document.getElementById('watchStopBtn').onclick = () => this.stop();
+      this.initialized = true;
+    }
+  },
+  setStatus(text, cls) {
+    const $s = document.getElementById('watchStatus');
+    $s.textContent = text;
+    $s.className = 'status-line ' + (cls || '');
+  },
+  async start() {
+    if (STATIC_MODE) return;
+    this.stop();
+    const skill = parseInt(document.getElementById('watchSkill').value, 10);
+    const nnColor = document.getElementById('watchNNColor').value;
+    const spStr = document.getElementById('watchSp').value;
+    const sp = (spStr === 'random') ? Math.floor(Math.random() * 960) : parseInt(spStr, 10);
+    const movetime = parseFloat(document.getElementById('watchMovetime').value);
+    const body = {skill_level: skill, starting_position_index: sp, movetime_s: movetime};
+    if (nnColor === 'true')  body.nn_plays_white = true;
+    if (nnColor === 'false') body.nn_plays_white = false;
+    this.setStatus('starting match…', 'active');
+    document.getElementById('watchStartBtn').disabled = true;
+    try {
+      const r = await fetch('/api/watch/new_match', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(body),
+      });
+      if (!r.ok) throw new Error(await r.text());
+      const init = await r.json();
+      this.match = init;
+      this.moves = [];
+      this.board.setFlipped(!init.nn_plays_white);
+      this.board.setFen(init.fen);
+      this.board.setLastMove(null, null);
+      this._renderMoves();
+      this.setStatus(`match running — nn plays ${init.nn_plays_white ? 'white' : 'black'}, vs sf skill ${init.skill_level}`, 'active');
+      document.getElementById('watchStopBtn').disabled = false;
+      this._openStream(init.match_id);
+    } catch (e) { this.setStatus('failed to start: ' + e.message, 'loss'); }
+    finally { document.getElementById('watchStartBtn').disabled = STATIC_MODE; }
+  },
+  _openStream(matchId) {
+    const es = new EventSource(`/api/watch/${matchId}/stream`);
+    this.source = es;
+    es.addEventListener('move', (ev) => {
+      const m = JSON.parse(ev.data);
+      this.moves.push(m);
+      this.board.setFen(m.fen_after);
+      if (m.uci && m.uci.length >= 4) this.board.setLastMove(m.uci.slice(0,2), m.uci.slice(2,4));
+      const actor = m.actor === 'nn' ? 'nn' : 'stockfish';
+      this.setStatus(`ply ${m.ply+1}: ${actor} played ${m.san} (${m.elapsed_ms}ms)`, 'active');
+      this._renderMoves();
+    });
+    es.addEventListener('end', (ev) => {
+      const e = JSON.parse(ev.data);
+      es.close();
+      this.source = null;
+      document.getElementById('watchStopBtn').disabled = true;
+      if (e.error) { this.setStatus(`match ended with error: ${e.error}`, 'loss'); return; }
+      const nnWhite = this.match?.nn_plays_white;
+      let who;
+      if (e.result === '1-0') who = nnWhite ? 'nn won' : 'stockfish won';
+      else if (e.result === '0-1') who = nnWhite ? 'stockfish won' : 'nn won';
+      else who = 'draw';
+      this.setStatus(`match over: ${e.result} — ${who} (${e.total_plies} plies)`, e.result === '1/2-1/2' ? 'active' : 'win');
+    });
+    es.addEventListener('error', () => {
+      if (this.source) { this.setStatus('stream disconnected', 'loss'); this.stop(); }
+    });
+  },
+  stop() {
+    if (this.source) { this.source.close(); this.source = null; }
+    document.getElementById('watchStopBtn').disabled = true;
+  },
+  _renderMoves() {
+    const $ml = document.getElementById('watchMoveList');
+    if (this.moves.length === 0) { $ml.innerHTML = ''; return; }
+    const sans = this.moves.map(m => m.san);
+    const html = [];
+    for (let i = 0; i < sans.length; i += 2) {
+      const num = Math.floor(i/2) + 1;
+      const w = sans[i] || '', b = sans[i+1] || '';
+      const wActor = this.moves[i]?.actor || '', bActor = this.moves[i+1]?.actor || '';
+      const wTag = wActor ? `<span class="actor-tag ${wActor==='nn'?'nn':'sf'}">${wActor==='nn'?'nn':'sf'}</span>` : '';
+      const bTag = bActor ? `<span class="actor-tag ${bActor==='nn'?'nn':'sf'}">${bActor==='nn'?'nn':'sf'}</span>` : '';
+      html.push(`<div class="pair"><span class="num">${num}.</span><span class="w">${w}${wTag}</span><span class="b">${b}${bTag}</span></div>`);
+    }
+    $ml.innerHTML = html.join('');
+    $ml.scrollTop = $ml.scrollHeight;
+  },
+};
 
-  loadRuns();
-  setInterval(loadRuns, 30000);  // refresh runs list every 30s
+// ============================================================
+// Shared helpers
+// ============================================================
+function fmt(n, digits) { if (n == null || isNaN(n)) return '-'; return Number(n).toFixed(digits); }
+function pct(n, digits) { if (n == null || isNaN(n)) return '-'; return (Number(n) * 100).toFixed(digits) + '%'; }
+function alignPoints(xs, ys, allX) {
+  const xset = new Map();
+  for (let i = 0; i < xs.length; i++) xset.set(xs[i], ys[i]);
+  return allX.map(x => xset.has(x) ? xset.get(x) : null);
+}
+function lastTrainRecord(metrics) {
+  for (let i = metrics.length - 1; i >= 0; i--) if (metrics[i].phase === 'train') return metrics[i];
+  return null;
+}
+function chartOpts(xLabel) {
+  return {
+    responsive: true, maintainAspectRatio: false, animation: false,
+    plugins: { legend: { labels: { color: '#e6e9ef', font: { size: 11 } } } },
+    scales: {
+      x: { title: { display: true, text: xLabel, color: '#8a93a3' }, ticks: { color: '#8a93a3' }, grid: { color: '#2a323d' } },
+      y: { ticks: { color: '#8a93a3' }, grid: { color: '#2a323d' } },
+    },
+  };
+}
+
 })();
 </script>
 </body>

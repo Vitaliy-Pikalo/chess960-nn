@@ -1,0 +1,20 @@
+# Netlify config for the chess960-nn demo site.
+#
+# Netlify serves a static landing page (Overview + Training tab) — recruiters
+# get a polished URL with project summary, architecture diagram, results table,
+# and tech stack. The interactive Play / Watch tabs require the Python backend
+# (FastAPI + PyTorch + Stockfish) and are local-only; the frontend detects this
+# and shows a "static preview" banner pointing to the GitHub repo.
+
+[build]
+  # Just publishes the web/ directory as-is. No build step needed.
+  publish = "web"
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "SAMEORIGIN"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    # Tight CSP that still allows the chart.js CDN load.
+    Content-Security-Policy = "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; font-src 'self' data:;"
