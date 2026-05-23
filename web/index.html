@@ -28,17 +28,82 @@
     --pink:      #f472b6;
     --glow:      0 0 32px rgba(88, 166, 255, 0.15);
 
-    /* board palette — chosen for high contrast with bold piece outlines */
-    --sq-light:  #d9c7a4;
-    --sq-dark:   #8b6a47;
-    --sq-sel:    #6abe6a;
-    --sq-last:   #f4d35e;
-    --sq-check:  #f85149;
+    /* board palette (defaults; overridden by theme classes) */
+    --sq-light:  #eeeed2;
+    --sq-dark:   #769656;
+    --sq-sel:    rgba(255, 255, 100, 0.55);
+    --sq-last:   rgba(245, 211, 94, 0.50);
+    --sq-check:  rgba(248, 81, 73, 0.65);
+    --sq-legal-dot: rgba(0, 0, 0, 0.30);
     --piece-w:   #fafafa;
     --piece-w-stroke: #0d1117;
     --piece-b:   #1a1a1a;
     --piece-b-stroke: #f5e9d0;
   }
+  /* Board themes — applied on body */
+  body.theme-green   { --sq-light: #eeeed2; --sq-dark: #769656; }
+  body.theme-classic { --sq-light: #d9c7a4; --sq-dark: #8b6a47; }
+  body.theme-blue    { --sq-light: #dee3e6; --sq-dark: #5c89a9; }
+  body.theme-walnut  { --sq-light: #e0c094; --sq-dark: #7a4a2b; }
+  body.theme-slate   { --sq-light: #c5cbd1; --sq-dark: #5a6470; }
+  body.theme-rose    { --sq-light: #f1d4d4; --sq-dark: #9c5a6c; }
+
+  /* Piece-style classes set on body */
+  body.pieces-classic .piece.white {
+    color: var(--piece-w);
+    text-shadow:
+      -1.5px -1.5px 0 var(--piece-w-stroke),
+       1.5px -1.5px 0 var(--piece-w-stroke),
+      -1.5px  1.5px 0 var(--piece-w-stroke),
+       1.5px  1.5px 0 var(--piece-w-stroke),
+       0   -1.5px 0 var(--piece-w-stroke),
+       0    1.5px 0 var(--piece-w-stroke),
+      -1.5px  0   0 var(--piece-w-stroke),
+       1.5px  0   0 var(--piece-w-stroke),
+       0 2px 4px rgba(0, 0, 0, 0.35);
+  }
+  body.pieces-classic .piece.black {
+    color: var(--piece-b);
+    text-shadow:
+      -1px -1px 0 var(--piece-b-stroke),
+       1px -1px 0 var(--piece-b-stroke),
+      -1px  1px 0 var(--piece-b-stroke),
+       1px  1px 0 var(--piece-b-stroke),
+       0 1px 3px rgba(0, 0, 0, 0.5);
+  }
+  body.pieces-clean .piece.white {
+    color: #f8f8f8;
+    -webkit-text-stroke: 1px #0d1117;
+    text-shadow: 0 2px 4px rgba(0,0,0,0.45);
+  }
+  body.pieces-clean .piece.black {
+    color: #1a1a1a;
+    -webkit-text-stroke: 0.5px #f5e9d0;
+    text-shadow: 0 1px 3px rgba(0,0,0,0.5);
+  }
+  body.pieces-bold .piece {
+    font-weight: 900;
+    font-size: 1.08em;
+  }
+  body.pieces-bold .piece.white {
+    color: var(--piece-w);
+    text-shadow:
+      -2px -2px 0 var(--piece-w-stroke),
+       2px -2px 0 var(--piece-w-stroke),
+      -2px  2px 0 var(--piece-w-stroke),
+       2px  2px 0 var(--piece-w-stroke),
+       0 3px 5px rgba(0, 0, 0, 0.45);
+  }
+  body.pieces-bold .piece.black {
+    color: var(--piece-b);
+    text-shadow:
+      -1.5px -1.5px 0 var(--piece-b-stroke),
+       1.5px -1.5px 0 var(--piece-b-stroke),
+      -1.5px  1.5px 0 var(--piece-b-stroke),
+       1.5px  1.5px 0 var(--piece-b-stroke),
+       0 2px 4px rgba(0, 0, 0, 0.5);
+  }
+
   * { box-sizing: border-box; }
   html, body {
     margin: 0;
@@ -108,7 +173,7 @@
     color: var(--fg);
     border-bottom-color: var(--accent);
   }
-  .topbar-right { display: flex; align-items: center; gap: 12px; }
+  .topbar-right { display: flex; align-items: center; gap: 10px; }
   .engine-status {
     font-size: 11px;
     color: var(--muted);
@@ -130,6 +195,19 @@
   .engine-status.ok::before { background: var(--success); box-shadow: 0 0 6px var(--success); }
   .engine-status.off { color: var(--warn); }
   .engine-status.off::before { background: var(--warn); }
+  .icon-btn {
+    width: 32px; height: 32px;
+    display: inline-flex;
+    align-items: center; justify-content: center;
+    background: var(--panel-3);
+    border: 1px solid var(--border);
+    color: var(--fg-2);
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 15px;
+    transition: all 0.12s;
+  }
+  .icon-btn:hover { color: var(--fg); border-color: var(--border-2); background: var(--panel-2); }
   .topbar-link {
     font-size: 12px;
     color: var(--fg-2);
@@ -138,11 +216,77 @@
     border: 1px solid var(--border);
     background: var(--panel-3);
   }
-  .topbar-link:hover {
-    color: var(--fg);
-    border-color: var(--border-2);
-    text-decoration: none;
+  .topbar-link:hover { color: var(--fg); border-color: var(--border-2); text-decoration: none; }
+
+  /* Settings dropdown */
+  .settings-panel {
+    position: fixed;
+    top: 60px; right: 14px;
+    width: 280px;
+    background: var(--panel);
+    border: 1px solid var(--border-2);
+    border-radius: 10px;
+    box-shadow: 0 16px 48px rgba(0,0,0,0.45);
+    padding: 16px 18px;
+    z-index: 50;
+    animation: dropdown 0.12s ease;
   }
+  @keyframes dropdown {
+    from { opacity: 0; transform: translateY(-6px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .settings-panel h4 {
+    font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em;
+    color: var(--muted);
+    margin: 14px 0 8px;
+  }
+  .settings-panel h4:first-child { margin-top: 0; }
+  .theme-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+  }
+  .theme-swatch {
+    cursor: pointer;
+    border: 2px solid transparent;
+    border-radius: 6px;
+    overflow: hidden;
+    padding: 0;
+    background: transparent;
+    transition: border-color 0.12s;
+  }
+  .theme-swatch.active { border-color: var(--accent); }
+  .theme-swatch:hover  { border-color: var(--border-2); }
+  .theme-swatch .preview {
+    width: 100%; height: 38px;
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    grid-template-rows: repeat(2, 1fr);
+  }
+  .theme-swatch .preview div { width: 100%; height: 100%; }
+  .theme-swatch .label {
+    font-size: 10px; color: var(--muted);
+    padding: 4px 0; text-align: center;
+    background: var(--panel-2);
+    text-transform: capitalize;
+    border-top: 1px solid var(--border);
+  }
+  .theme-swatch.active .label { color: var(--accent); }
+  .piece-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+  .piece-swatch {
+    cursor: pointer;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 8px 4px;
+    font-size: 11px;
+    color: var(--muted);
+    text-align: center;
+    transition: all 0.12s;
+  }
+  .piece-swatch:hover { border-color: var(--border-2); color: var(--fg-2); }
+  .piece-swatch.active { border-color: var(--accent); color: var(--accent); background: rgba(88,166,255,0.08); }
+  .piece-swatch .glyph { font-size: 22px; line-height: 1; display: block; margin-bottom: 2px; }
 
   /* ===== Workspace + scrolling ===== */
   .workspace { flex: 1; overflow: hidden; display: flex; animation: fadein 0.18s ease; }
@@ -150,7 +294,7 @@
   @keyframes fadein { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
   aside { background: var(--panel); border-right: 1px solid var(--border); padding: 18px 16px; overflow-y: auto; }
   main { padding: 28px 32px; overflow-y: auto; flex: 1; }
-  main.home-main { padding: 0; }  /* home page handles its own padding */
+  main.home-main { padding: 0; }
 
   /* ===== Train view sidebar ===== */
   aside h1 { margin: 0 0 4px 0; font-size: 13px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
@@ -184,12 +328,7 @@
   .badge.rl { background: rgba(88, 166, 255, 0.18); color: var(--accent); }
   .badge.pretrain { background: rgba(86, 211, 100, 0.13); color: var(--success); }
 
-  /* ===== Generic content ===== */
-  .empty {
-    color: var(--muted);
-    padding: 80px 0;
-    text-align: center;
-  }
+  .empty { color: var(--muted); padding: 80px 0; text-align: center; }
   .run-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; }
   .run-header h2 { margin: 0; font-size: 20px; font-weight: 600; }
   .controls { display: flex; gap: 12px; align-items: center; }
@@ -206,23 +345,17 @@
     font-weight: 500;
     transition: all 0.12s;
   }
-  button:hover, button.btn:hover {
-    background: var(--panel-2);
-    border-color: var(--border-2);
-  }
+  button:hover, button.btn:hover { background: var(--panel-2); border-color: var(--border-2); }
   button.primary, button.btn.primary {
     background: linear-gradient(180deg, #4f9cf9, #2f80ed);
-    color: white;
-    border-color: transparent;
+    color: white; border-color: transparent;
     box-shadow: 0 1px 0 rgba(255,255,255,0.1) inset, 0 1px 6px rgba(47, 128, 237, 0.3);
   }
   button.primary:hover, button.btn.primary:hover {
-    background: linear-gradient(180deg, #5fa9ff, #3a8bf2);
-    border-color: transparent;
+    background: linear-gradient(180deg, #5fa9ff, #3a8bf2); border-color: transparent;
   }
   button.danger, button.btn.danger {
-    background: rgba(248, 81, 73, 0.13);
-    color: var(--danger);
+    background: rgba(248, 81, 73, 0.13); color: var(--danger);
     border-color: rgba(248, 81, 73, 0.3);
   }
   button:disabled { opacity: 0.45; cursor: not-allowed; }
@@ -234,23 +367,14 @@
     gap: 12px;
     margin-bottom: 24px;
   }
-  .stat-card {
-    background: var(--panel);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    padding: 16px 18px;
-  }
+  .stat-card { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 16px 18px; }
   .stat-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; font-weight: 600; }
   .stat-value { font-size: 24px; font-weight: 700; margin-top: 6px; letter-spacing: -0.01em; }
   .stat-sub { font-size: 11px; color: var(--muted); margin-top: 4px; }
 
   .chart-wrap {
-    background: var(--panel);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    padding: 18px;
-    margin-bottom: 16px;
-    height: 320px;
+    background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
+    padding: 18px; margin-bottom: 16px; height: 320px;
   }
   .chart-title { font-size: 13px; font-weight: 600; margin-bottom: 14px; color: var(--fg-2); }
 
@@ -261,248 +385,88 @@
   .yes { color: var(--success); }
   .no { color: var(--danger); }
 
-  /* ===== Home / landing ===== */
-  .home {
-    max-width: 1140px;
-    margin: 0 auto;
-    padding: 48px 32px 80px;
-  }
-  .hero {
-    text-align: left;
-    margin-bottom: 48px;
-  }
+  /* ===== Home ===== */
+  .home { max-width: 1140px; margin: 0 auto; padding: 48px 32px 80px; }
+  .hero { margin-bottom: 48px; }
   .hero .eyebrow {
-    display: inline-block;
-    font-size: 11px;
-    font-weight: 600;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-    color: var(--accent);
-    background: rgba(88, 166, 255, 0.10);
-    border: 1px solid rgba(88, 166, 255, 0.25);
-    padding: 5px 12px;
-    border-radius: 20px;
-    margin-bottom: 18px;
+    display: inline-block; font-size: 11px; font-weight: 600;
+    letter-spacing: 0.12em; text-transform: uppercase; color: var(--accent);
+    background: rgba(88, 166, 255, 0.10); border: 1px solid rgba(88, 166, 255, 0.25);
+    padding: 5px 12px; border-radius: 20px; margin-bottom: 18px;
   }
   .hero h1 {
-    font-size: clamp(34px, 4.4vw, 52px);
-    line-height: 1.1;
-    margin: 0 0 18px 0;
-    letter-spacing: -0.02em;
-    font-weight: 700;
+    font-size: clamp(34px, 4.4vw, 52px); line-height: 1.1;
+    margin: 0 0 18px 0; letter-spacing: -0.02em; font-weight: 700;
     background: linear-gradient(180deg, var(--fg) 0%, var(--fg-2) 100%);
-    -webkit-background-clip: text;
-    background-clip: text;
-    -webkit-text-fill-color: transparent;
+    -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
   }
-  .hero p.lede {
-    font-size: 17px;
-    color: var(--fg-2);
-    max-width: 780px;
-    line-height: 1.6;
-    margin: 0 0 28px 0;
-  }
+  .hero p.lede { font-size: 17px; color: var(--fg-2); max-width: 780px; line-height: 1.6; margin: 0 0 28px 0; }
   .hero .cta-row { display: flex; gap: 10px; flex-wrap: wrap; }
-  .hero .cta-row .btn {
-    padding: 10px 18px;
-    font-size: 14px;
-  }
-
+  .hero .cta-row .btn { padding: 10px 18px; font-size: 14px; }
   .home-section { margin-bottom: 56px; }
-  .home-section h2 {
-    font-size: 13px;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.1em;
-    color: var(--accent);
-    margin: 0 0 4px 0;
-  }
-  .home-section h3 {
-    font-size: 24px;
-    font-weight: 600;
-    margin: 0 0 24px 0;
-    letter-spacing: -0.01em;
-  }
-
-  /* Headline stat row */
-  .headline-stats {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-    gap: 14px;
-    margin-bottom: 56px;
-  }
+  .home-section h2 { font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: var(--accent); margin: 0 0 4px 0; }
+  .home-section h3 { font-size: 24px; font-weight: 600; margin: 0 0 24px 0; letter-spacing: -0.01em; }
+  .headline-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px; margin-bottom: 56px; }
   .headline-card {
     background: linear-gradient(180deg, var(--panel), var(--bg-2));
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    padding: 22px 22px;
-    position: relative;
-    overflow: hidden;
+    border: 1px solid var(--border); border-radius: 12px; padding: 22px 22px;
+    position: relative; overflow: hidden;
   }
   .headline-card::after {
-    content: '';
-    position: absolute;
-    inset: -1px;
-    border-radius: 12px;
+    content: ''; position: absolute; inset: -1px; border-radius: 12px;
     background: linear-gradient(180deg, rgba(88,166,255,0.18), transparent 40%);
-    pointer-events: none;
-    opacity: 0.6;
+    pointer-events: none; opacity: 0.6;
   }
-  .headline-card .v {
-    font-size: 32px;
-    font-weight: 700;
-    letter-spacing: -0.02em;
-    color: var(--fg);
-    margin-bottom: 4px;
-    position: relative;
-    z-index: 1;
-  }
-  .headline-card .l {
-    font-size: 12px;
-    color: var(--muted);
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
-    font-weight: 600;
-    position: relative;
-    z-index: 1;
-  }
-  .headline-card .h {
-    font-size: 11px;
-    color: var(--fg-2);
-    margin-top: 6px;
-    line-height: 1.5;
-    position: relative;
-    z-index: 1;
-  }
-
-  /* Two-column "How it works" */
-  .twocol {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 32px;
-  }
+  .headline-card .v { font-size: 32px; font-weight: 700; letter-spacing: -0.02em; color: var(--fg); margin-bottom: 4px; position: relative; z-index: 1; }
+  .headline-card .l { font-size: 12px; color: var(--muted); letter-spacing: 0.04em; text-transform: uppercase; font-weight: 600; position: relative; z-index: 1; }
+  .headline-card .h { font-size: 11px; color: var(--fg-2); margin-top: 6px; line-height: 1.5; position: relative; z-index: 1; }
+  .twocol { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; }
   @media (max-width: 900px) { .twocol { grid-template-columns: 1fr; } }
-  .prose {
-    color: var(--fg-2);
-    line-height: 1.65;
-    font-size: 14px;
-  }
+  .prose { color: var(--fg-2); line-height: 1.65; font-size: 14px; }
   .prose p { margin: 0 0 14px 0; }
   .prose strong { color: var(--fg); font-weight: 600; }
   .prose code {
     font-family: ui-monospace, "SF Mono", Menlo, monospace;
-    background: var(--panel-3);
-    padding: 2px 6px;
-    border-radius: 3px;
-    font-size: 12px;
-    color: var(--accent-2);
+    background: var(--panel-3); padding: 2px 6px; border-radius: 3px;
+    font-size: 12px; color: var(--accent-2);
   }
-
-  /* Architecture diagram (HTML/CSS only) */
-  .arch {
-    background: var(--panel);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    padding: 28px;
-  }
-  .arch-stack {
-    display: flex;
-    flex-direction: column;
-    align-items: stretch;
-    gap: 0;
-  }
-  .arch-box {
-    background: var(--panel-2);
-    border: 1px solid var(--border-2);
-    border-radius: 8px;
-    padding: 14px 16px;
-  }
+  .arch { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 28px; }
+  .arch-stack { display: flex; flex-direction: column; gap: 0; }
+  .arch-box { background: var(--panel-2); border: 1px solid var(--border-2); border-radius: 8px; padding: 14px 16px; }
   .arch-box .t { font-size: 13px; font-weight: 600; color: var(--fg); }
   .arch-box .d { font-size: 11px; color: var(--muted); margin-top: 4px; line-height: 1.4; }
-  .arch-arrow {
-    height: 24px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: var(--border-2);
-    font-size: 14px;
-  }
+  .arch-arrow { height: 24px; display: flex; align-items: center; justify-content: center; color: var(--border-2); font-size: 14px; }
   .arch-box.accent { border-color: var(--accent); background: rgba(88, 166, 255, 0.08); }
   .arch-box.accent .t { color: var(--accent); }
-
-  /* Results table for home */
-  .results-table {
-    background: var(--panel);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    overflow: hidden;
-  }
+  .results-table { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
   .results-table table { font-size: 13px; }
   .results-table th, .results-table td { padding: 10px 14px; }
   .results-table th:first-child, .results-table td:first-child { padding-left: 18px; }
   .results-table .bar {
-    display: inline-block;
-    height: 6px;
-    border-radius: 3px;
+    display: inline-block; height: 6px; border-radius: 3px;
     background: linear-gradient(90deg, var(--accent), var(--accent-2));
-    vertical-align: middle;
-    margin-right: 6px;
+    vertical-align: middle; margin-right: 6px;
   }
-
-  /* Tech chips */
   .chips { display: flex; flex-wrap: wrap; gap: 8px; }
   .chip {
-    display: inline-flex;
-    align-items: center;
-    padding: 5px 11px;
-    font-size: 12px;
-    border-radius: 999px;
-    background: var(--panel-2);
-    border: 1px solid var(--border);
-    color: var(--fg-2);
+    display: inline-flex; align-items: center; padding: 5px 11px; font-size: 12px;
+    border-radius: 999px; background: var(--panel-2); border: 1px solid var(--border); color: var(--fg-2);
   }
-
-  /* CTAs */
-  .cta-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-    gap: 14px;
-  }
+  .cta-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; }
   .cta-card {
-    background: var(--panel);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    padding: 22px;
-    cursor: pointer;
-    transition: all 0.15s;
-    text-decoration: none;
-    color: inherit;
-    display: block;
+    background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
+    padding: 22px; cursor: pointer; transition: all 0.15s;
+    text-decoration: none; color: inherit; display: block;
   }
-  .cta-card:hover {
-    border-color: var(--accent);
-    transform: translateY(-2px);
-    box-shadow: var(--glow);
-    text-decoration: none;
-  }
-  .cta-card .icon {
-    font-size: 28px;
-    margin-bottom: 12px;
-  }
+  .cta-card:hover { border-color: var(--accent); transform: translateY(-2px); box-shadow: var(--glow); text-decoration: none; }
+  .cta-card .icon { font-size: 28px; margin-bottom: 12px; }
   .cta-card .t { font-size: 15px; font-weight: 600; color: var(--fg); margin-bottom: 4px; }
   .cta-card .d { font-size: 12px; color: var(--muted); line-height: 1.5; }
-
-  /* Footer */
   footer.site-footer {
     border-top: 1px solid var(--border);
-    padding: 28px 0 16px;
-    margin-top: 56px;
-    color: var(--muted);
-    font-size: 12px;
-    display: flex;
-    justify-content: space-between;
-    flex-wrap: wrap;
-    gap: 12px;
+    padding: 28px 0 16px; margin-top: 56px;
+    color: var(--muted); font-size: 12px;
+    display: flex; justify-content: space-between; flex-wrap: wrap; gap: 12px;
   }
 
   /* ===== Demo (Play / Watch) ===== */
@@ -514,54 +478,32 @@
     max-width: 1140px;
   }
   @media (max-width: 980px) { .demo-layout { grid-template-columns: 1fr; } }
-  .board-card {
-    background: var(--panel);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    padding: 18px;
-  }
-  .panel-card {
-    background: var(--panel);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    padding: 20px;
-  }
+  .board-card { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 18px; }
+  .panel-card { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 20px; }
   .panel-card h3 {
-    margin: 0 0 14px 0;
-    font-size: 12px;
-    font-weight: 700;
-    color: var(--muted);
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
+    margin: 0 0 14px 0; font-size: 12px; font-weight: 700;
+    color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em;
   }
-  .panel-card .intro {
-    font-size: 13px;
-    color: var(--fg-2);
-    line-height: 1.55;
-    margin-bottom: 18px;
-  }
-  .form-row {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    margin-bottom: 11px;
-  }
+  .panel-card .intro { font-size: 13px; color: var(--fg-2); line-height: 1.55; margin-bottom: 18px; }
+  .form-row { display: flex; align-items: center; gap: 12px; margin-bottom: 11px; }
   .form-row label { font-size: 12px; color: var(--muted); min-width: 110px; font-weight: 500; }
   .form-row input, .form-row select {
-    background: var(--panel-2);
-    border: 1px solid var(--border);
-    color: var(--fg);
-    padding: 7px 10px;
-    border-radius: 6px;
-    font-size: 13px;
-    flex: 1;
-    font-family: inherit;
+    background: var(--panel-2); border: 1px solid var(--border); color: var(--fg);
+    padding: 7px 10px; border-radius: 6px; font-size: 13px; flex: 1; font-family: inherit;
   }
-  .form-row input:focus, .form-row select:focus {
-    outline: none;
-    border-color: var(--accent);
-  }
+  .form-row input:focus, .form-row select:focus { outline: none; border-color: var(--accent); }
   .form-row .hint { font-size: 11px; color: var(--muted); }
+  .seg {
+    display: inline-flex; background: var(--panel-2); border: 1px solid var(--border);
+    border-radius: 6px; padding: 2px; flex: 1;
+  }
+  .seg button {
+    flex: 1; background: transparent; border: none; padding: 6px 10px;
+    font-size: 12px; color: var(--muted); border-radius: 4px;
+    cursor: pointer; font-weight: 500;
+  }
+  .seg button.active { background: var(--accent); color: white; }
+  .seg button:hover:not(.active) { color: var(--fg); }
 
   /* ===== Chess board ===== */
   .board {
@@ -588,151 +530,135 @@
   }
   .sq.light { background: var(--sq-light); }
   .sq.dark  { background: var(--sq-dark); }
-  .sq.sel   { background: var(--sq-sel) !important; }
-  .sq.last-from, .sq.last-to { background: var(--sq-last) !important; }
-  .sq.in-check { background: var(--sq-check) !important; }
+  /* Selection / last-move highlights are layered as overlays so legal dots can sit on top. */
+  .sq.sel::before, .sq.last-from::before, .sq.last-to::before, .sq.in-check::before {
+    content: '';
+    position: absolute; inset: 0;
+    pointer-events: none;
+  }
+  .sq.sel::before       { background: var(--sq-sel); }
+  .sq.last-from::before { background: var(--sq-last); }
+  .sq.last-to::before   { background: var(--sq-last); }
+  .sq.in-check::before  { background: var(--sq-check); }
   .sq .coord {
     position: absolute;
-    bottom: 1px;
-    right: 4px;
-    font-size: 9px;
-    font-weight: 600;
+    bottom: 1px; right: 4px;
+    font-size: 9px; font-weight: 600;
     color: rgba(0,0,0,0.55);
     pointer-events: none;
     letter-spacing: 0.02em;
+    z-index: 2;
   }
   .sq.dark .coord { color: rgba(255,255,255,0.7); }
-
-  /* Strong stroke around pieces so white reads on light and black reads on dark. */
   .sq .piece {
     pointer-events: none;
     line-height: 1;
     font-weight: 400;
     transition: transform 0.08s;
+    position: relative;
+    z-index: 2;
   }
-  .sq .piece.white {
-    color: var(--piece-w);
-    text-shadow:
-      -1.5px -1.5px 0 var(--piece-w-stroke),
-       1.5px -1.5px 0 var(--piece-w-stroke),
-      -1.5px  1.5px 0 var(--piece-w-stroke),
-       1.5px  1.5px 0 var(--piece-w-stroke),
-       0   -1.5px 0 var(--piece-w-stroke),
-       0    1.5px 0 var(--piece-w-stroke),
-      -1.5px  0   0 var(--piece-w-stroke),
-       1.5px  0   0 var(--piece-w-stroke),
-       0 2px 4px rgba(0, 0, 0, 0.35);
+  /* Legal-move dots (chess.com style). */
+  .sq.legal-empty::after {
+    content: '';
+    position: absolute;
+    width: 30%; height: 30%;
+    border-radius: 50%;
+    background: var(--sq-legal-dot);
+    pointer-events: none;
+    z-index: 1;
   }
-  .sq .piece.black {
-    color: var(--piece-b);
-    text-shadow:
-      -1px -1px 0 var(--piece-b-stroke),
-       1px -1px 0 var(--piece-b-stroke),
-      -1px  1px 0 var(--piece-b-stroke),
-       1px  1px 0 var(--piece-b-stroke),
-       0 1px 3px rgba(0, 0, 0, 0.5);
+  .sq.legal-capture::after {
+    content: '';
+    position: absolute;
+    width: 92%; height: 92%;
+    border-radius: 50%;
+    background: transparent;
+    border: 5px solid var(--sq-legal-dot);
+    box-sizing: border-box;
+    pointer-events: none;
+    z-index: 1;
   }
   .sq:hover .piece { transform: scale(1.06); }
+  /* Brief "pop" applied to the user's optimistic move so it's clearly visible
+     even when the engine reply comes back fast. */
+  .sq .piece.just-moved {
+    animation: piece-pop 0.22s cubic-bezier(0.2, 0.8, 0.3, 1.2);
+  }
+  @keyframes piece-pop {
+    0%   { transform: scale(1.35); opacity: 0.55; }
+    60%  { transform: scale(1.03); opacity: 1; }
+    100% { transform: scale(1); opacity: 1; }
+  }
+  .sq.just-moved-glow {
+    animation: square-glow 0.5s ease-out;
+  }
+  @keyframes square-glow {
+    0%   { box-shadow: inset 0 0 0 4px rgba(88, 166, 255, 0.8); }
+    100% { box-shadow: inset 0 0 0 4px transparent; }
+  }
 
-  /* Move list */
   .move-list {
-    max-height: 360px;
-    overflow-y: auto;
-    background: var(--panel-2);
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    padding: 10px 14px;
+    max-height: 360px; overflow-y: auto;
+    background: var(--panel-2); border: 1px solid var(--border);
+    border-radius: 6px; padding: 10px 14px;
     font-family: ui-monospace, "SF Mono", Menlo, monospace;
-    font-size: 12px;
-    line-height: 1.7;
+    font-size: 12px; line-height: 1.7;
   }
   .move-list .pair { display: flex; gap: 10px; align-items: center; }
   .move-list .num { color: var(--muted); width: 26px; text-align: right; }
   .move-list .w, .move-list .b { width: 72px; }
   .status-line {
-    font-size: 13px;
-    color: var(--muted);
-    margin: 14px 0 4px;
-    min-height: 1.4em;
-    font-weight: 500;
+    font-size: 13px; color: var(--muted); margin: 14px 0 4px;
+    min-height: 1.4em; font-weight: 500;
   }
   .status-line.active { color: var(--accent); }
-  .status-line.win { color: var(--success); }
-  .status-line.loss { color: var(--danger); }
-
+  .status-line.win    { color: var(--success); }
+  .status-line.loss   { color: var(--danger); }
   .actor-tag {
-    display: inline-block;
-    font-size: 9px;
-    padding: 2px 5px;
-    border-radius: 3px;
-    margin-left: 4px;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    font-weight: 600;
+    display: inline-block; font-size: 9px; padding: 2px 5px; border-radius: 3px;
+    margin-left: 4px; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600;
   }
   .actor-tag.nn { background: rgba(88, 166, 255, 0.18); color: var(--accent); }
   .actor-tag.sf { background: rgba(86, 211, 100, 0.15); color: var(--success); }
-
   .toggle { display: flex; align-items: center; gap: 6px; cursor: pointer; }
   .toggle input { cursor: pointer; }
 
-  /* Static-mode banner for play/watch when no backend */
   .static-banner {
     background: linear-gradient(180deg, rgba(227, 179, 65, 0.08), rgba(227, 179, 65, 0.02));
     border: 1px solid rgba(227, 179, 65, 0.3);
-    border-radius: 10px;
-    padding: 22px 24px;
-    margin-bottom: 24px;
-    max-width: 1140px;
+    border-radius: 10px; padding: 22px 24px;
+    margin-bottom: 24px; max-width: 1140px;
   }
-  .static-banner .t {
-    font-weight: 600;
-    color: var(--warn);
-    font-size: 14px;
-    margin-bottom: 8px;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
+  .static-banner .t { font-weight: 600; color: var(--warn); font-size: 14px; margin-bottom: 8px; }
   .static-banner .d { font-size: 13px; color: var(--fg-2); line-height: 1.6; }
   .static-banner code {
-    background: var(--panel-3);
-    padding: 2px 6px;
-    border-radius: 3px;
+    background: var(--panel-3); padding: 2px 6px; border-radius: 3px;
     font-family: ui-monospace, "SF Mono", Menlo, monospace;
-    font-size: 12px;
-    color: var(--accent-2);
+    font-size: 12px; color: var(--accent-2);
   }
 
-  /* Promotion modal */
   .modal-bg {
     position: fixed; inset: 0; background: rgba(0,0,0,0.65);
     display: flex; align-items: center; justify-content: center;
-    z-index: 100;
-    backdrop-filter: blur(2px);
+    z-index: 100; backdrop-filter: blur(2px);
   }
   .modal {
-    background: var(--panel);
-    border: 1px solid var(--border-2);
-    border-radius: 12px;
-    padding: 24px;
-    min-width: 280px;
-    box-shadow: 0 24px 64px rgba(0, 0, 0, 0.5);
+    background: var(--panel); border: 1px solid var(--border-2); border-radius: 12px;
+    padding: 24px; min-width: 280px; box-shadow: 0 24px 64px rgba(0, 0, 0, 0.5);
   }
   .modal h3 { margin: 0 0 16px 0; font-size: 15px; font-weight: 600; }
   .modal .choices { display: flex; gap: 8px; }
-  .modal .choices button {
-    flex: 1; font-size: 32px; padding: 14px;
-  }
+  .modal .choices button { flex: 1; font-size: 32px; padding: 14px; }
 </style>
 </head>
-<body>
+<body class="theme-green pieces-classic">
 <div class="app">
   <header class="topbar">
     <div class="brand">
       <span class="knight">♞</span>
       chess960-nn
-      <span class="v">v0.2</span>
+      <span class="v">v0.3</span>
     </div>
     <nav class="tabs" id="tabs">
       <button data-tab="home" class="active">overview</button>
@@ -742,11 +668,20 @@
     </nav>
     <div class="topbar-right">
       <div id="engineStatus" class="engine-status">checking…</div>
+      <button class="icon-btn" id="settingsBtn" title="board + piece settings">⚙</button>
       <a class="topbar-link" id="repoLink" href="https://github.com/Vitaliy-Pikalo/chess960-nn" target="_blank" rel="noopener">github ↗</a>
     </div>
   </header>
 
-  <!-- ==================== HOME / OVERVIEW ==================== -->
+  <!-- Settings dropdown (hidden by default) -->
+  <div id="settingsPanel" class="settings-panel" style="display:none;">
+    <h4>board theme</h4>
+    <div class="theme-grid" id="themeGrid"></div>
+    <h4>piece style</h4>
+    <div class="piece-grid" id="pieceGrid"></div>
+  </div>
+
+  <!-- ==================== HOME ==================== -->
   <div class="workspace" id="view-home">
     <main class="home-main">
       <div class="home">
@@ -768,26 +703,10 @@
         </section>
 
         <section class="headline-stats">
-          <div class="headline-card">
-            <div class="v">~1600</div>
-            <div class="l">final elo</div>
-            <div class="h">measured vs stockfish, 100 games, 5 skill levels</div>
-          </div>
-          <div class="headline-card">
-            <div class="v">6.7 M</div>
-            <div class="l">parameters</div>
-            <div class="h">10-block resnet, 192 filters, policy + value heads</div>
-          </div>
-          <div class="headline-card">
-            <div class="v">6.4 M</div>
-            <div class="l">pretrain positions</div>
-            <div class="h">lichess master games, 5 epochs supervised</div>
-          </div>
-          <div class="headline-card">
-            <div class="v">1 × 3060 Ti</div>
-            <div class="l">hardware</div>
-            <div class="h">8 GB vram, single workstation, ~5 h compute</div>
-          </div>
+          <div class="headline-card"><div class="v">~1600</div><div class="l">final elo</div><div class="h">measured vs stockfish, 100 games, 5 skill levels</div></div>
+          <div class="headline-card"><div class="v">6.7 M</div><div class="l">parameters</div><div class="h">10-block resnet, 192 filters, policy + value heads</div></div>
+          <div class="headline-card"><div class="v">6.4 M</div><div class="l">pretrain positions</div><div class="h">lichess master games, 5 epochs supervised</div></div>
+          <div class="headline-card"><div class="v">1 × 3060 Ti</div><div class="l">hardware</div><div class="h">8 GB vram, single workstation, ~5 h compute</div></div>
         </section>
 
         <section class="home-section">
@@ -795,53 +714,21 @@
           <h3>Three things, working in a loop.</h3>
           <div class="twocol">
             <div class="prose">
-              <p>
-                The engine has three pieces. A <strong>neural network</strong> looks at a position
-                and outputs (a) a move probability for every legal move and (b) an estimate of who
-                is winning. <strong>Monte Carlo Tree Search</strong> uses those guesses to simulate
-                many possible futures and refine the move choice. A <strong>self-play training
-                loop</strong> generates new games and uses them to improve the network.
-              </p>
-              <p>
-                The architecture is a standard residual <strong>conv-net</strong> with <code>10</code>
-                blocks of <code>192</code> filters — roughly <code>6.7M</code> parameters. Two output
-                heads: a policy head (one probability per possible move) and a value head (a single
-                number in <code>[-1, +1]</code>).
-              </p>
-              <p>
-                After supervised pretraining on Lichess master games, the RL loop ran 5 iterations
-                of: generate self-play games → train on the new data → play a 10-game match against
-                the current champion → promote only if score ≥ <code>0.55</code>. The <strong>gated
-                promotion</strong> is the safety net — it caught a regression at iteration 1 that
-                the self-play stats alone would have hidden.
-              </p>
+              <p>The engine has three pieces. A <strong>neural network</strong> looks at a position and outputs (a) a move probability for every legal move and (b) an estimate of who is winning. <strong>Monte Carlo Tree Search</strong> uses those guesses to simulate many possible futures and refine the move choice. A <strong>self-play training loop</strong> generates new games and uses them to improve the network.</p>
+              <p>The architecture is a standard residual <strong>conv-net</strong> with <code>10</code> blocks of <code>192</code> filters — roughly <code>6.7M</code> parameters. Two output heads: a policy head (one probability per possible move) and a value head (a single number in <code>[-1, +1]</code>).</p>
+              <p>After supervised pretraining on Lichess master games, the RL loop ran 5 iterations of: generate self-play games → train on the new data → play a 10-game match against the current champion → promote only if score ≥ <code>0.55</code>. The <strong>gated promotion</strong> is the safety net — it caught a regression at iteration 1 that the self-play stats alone would have hidden.</p>
             </div>
             <div class="arch">
               <div class="arch-stack">
-                <div class="arch-box">
-                  <div class="t">Board encoding</div>
-                  <div class="d">FEN → 8×8 plane stack (one plane per piece type, castling, side to move)</div>
-                </div>
+                <div class="arch-box"><div class="t">Board encoding</div><div class="d">FEN → 8×8 plane stack (one plane per piece type, castling, side to move)</div></div>
                 <div class="arch-arrow">↓</div>
-                <div class="arch-box accent">
-                  <div class="t">Neural network</div>
-                  <div class="d">10 × residual conv blocks, 192 filters → policy head + value head</div>
-                </div>
+                <div class="arch-box accent"><div class="t">Neural network</div><div class="d">10 × residual conv blocks, 192 filters → policy head + value head</div></div>
                 <div class="arch-arrow">↓</div>
-                <div class="arch-box">
-                  <div class="t">MCTS (PUCT)</div>
-                  <div class="d">100 sims/move during training, 800 in AlphaZero proper. Picks the most-visited move at the root.</div>
-                </div>
+                <div class="arch-box"><div class="t">MCTS (PUCT)</div><div class="d">100 sims/move during training, 800 in AlphaZero proper. Picks the most-visited move at the root.</div></div>
                 <div class="arch-arrow">↓</div>
-                <div class="arch-box">
-                  <div class="t">Self-play</div>
-                  <div class="d">Engine plays itself; (position, MCTS visits, game result) → training data</div>
-                </div>
+                <div class="arch-box"><div class="t">Self-play</div><div class="d">Engine plays itself; (position, MCTS visits, game result) → training data</div></div>
                 <div class="arch-arrow">↓</div>
-                <div class="arch-box">
-                  <div class="t">Train + gate</div>
-                  <div class="d">Update weights, play 10-game match vs champion, promote only if score ≥ 0.55</div>
-                </div>
+                <div class="arch-box"><div class="t">Train + gate</div><div class="d">Update weights, play 10-game match vs champion, promote only if score ≥ 0.55</div></div>
               </div>
             </div>
           </div>
@@ -852,9 +739,7 @@
           <h3>Final eval vs Stockfish — 100 games across 5 calibrated skill levels.</h3>
           <div class="results-table">
             <table>
-              <thead>
-                <tr><th>stockfish skill</th><th>sf elo</th><th>games</th><th>score</th><th>nn elo est.</th></tr>
-              </thead>
+              <thead><tr><th>stockfish skill</th><th>sf elo</th><th>games</th><th>score</th><th>nn elo est.</th></tr></thead>
               <tbody>
                 <tr><td>0</td><td>1320</td><td>20</td><td><span class="bar" style="width:80px;"></span>0.900 (17W / 1L / 2D)</td><td class="num">1702</td></tr>
                 <tr><td>3</td><td>1600</td><td>20</td><td><span class="bar" style="width:40px;"></span>0.450 (8W / 10L / 2D)</td><td class="num">1565</td></tr>
@@ -865,10 +750,7 @@
             </table>
           </div>
           <p class="prose" style="margin-top: 14px;">
-            Cross-over point is around Stockfish skill 3 (~1600 Elo). The engine reliably beats
-            below-club-level Stockfish, holds its own around 1500-1700, and loses cleanly above that.
-            An earlier 4-game-per-level eval suggested ~1876 Elo — that estimate was discarded once
-            the 100-game eval showed the smaller sample was within ±400 Elo of noise.
+            Cross-over point is around Stockfish skill 3 (~1600 Elo). The engine reliably beats below-club-level Stockfish, holds its own around 1500-1700, and loses cleanly above that. An earlier 4-game-per-level eval suggested ~1876 Elo — that estimate was discarded once the 100-game eval showed the smaller sample was within ±400 Elo of noise.
           </p>
         </section>
 
@@ -877,18 +759,15 @@
           <h3>Three views.</h3>
           <div class="cta-grid">
             <a class="cta-card" onclick="showTab('play'); return false;" href="#play">
-              <div class="icon">♟️</div>
-              <div class="t">Play the engine</div>
-              <div class="d">A full Chess960 board. Choose your color, pick a starting position, make moves; the engine replies with MCTS-backed inference. Castling on king→rook clicks.</div>
+              <div class="icon">♟️</div><div class="t">Play the engine</div>
+              <div class="d">Click to move, dots show legal destinations, optimistic display so your move appears instantly. Customizable themes and pieces. Speed selector for fast/normal/strong play.</div>
             </a>
             <a class="cta-card" onclick="showTab('watch'); return false;" href="#watch">
-              <div class="icon">📺</div>
-              <div class="t">Watch vs Stockfish</div>
+              <div class="icon">📺</div><div class="t">Watch vs Stockfish</div>
               <div class="d">Live NN-vs-Stockfish game streamed move-by-move. Pick a skill level (0-20). Each move is annotated by who played it.</div>
             </a>
             <a class="cta-card" onclick="showTab('train'); return false;" href="#train">
-              <div class="icon">📈</div>
-              <div class="t">Training metrics</div>
+              <div class="icon">📈</div><div class="t">Training metrics</div>
               <div class="d">Loss curves, accuracy, RL iteration summaries. Every run from supervised pretrain through 5 RL iterations is here.</div>
             </a>
           </div>
@@ -898,14 +777,10 @@
           <h2>stack</h2>
           <h3>Built with.</h3>
           <div class="chips">
-            <span class="chip">Python 3.11</span>
-            <span class="chip">PyTorch (CUDA 12)</span>
-            <span class="chip">python-chess</span>
-            <span class="chip">Stockfish 16 (AVX2)</span>
-            <span class="chip">FastAPI + Uvicorn</span>
-            <span class="chip">uv</span>
-            <span class="chip">NumPy</span>
-            <span class="chip">Chart.js</span>
+            <span class="chip">Python 3.11</span><span class="chip">PyTorch (CUDA 12)</span>
+            <span class="chip">python-chess</span><span class="chip">Stockfish 16 (AVX2)</span>
+            <span class="chip">FastAPI + Uvicorn</span><span class="chip">uv</span>
+            <span class="chip">NumPy</span><span class="chip">Chart.js</span>
             <span class="chip">vanilla JS + CSS</span>
           </div>
         </section>
@@ -914,40 +789,17 @@
           <h2>honest assessment</h2>
           <h3>The engineering is the deliverable.</h3>
           <div class="prose">
-            <p>
-              The original goal was 2000+ Elo to beat strong club players. The engine lands ~400 Elo
-              short. Diagnosis: the architecture is sound; the limit is compute budget. Pretraining
-              was the source of strength — the RL loop never had enough self-play data per iteration
-              (30 games vs AlphaZero's thousands) or MCTS budget (100 sims vs 800) to push past the
-              pretrained baseline.
-            </p>
-            <p>
-              The two pieces I'm proudest of are the <strong>gating mechanism</strong> (which caught a
-              real regression that self-play stats alone would have hidden) and the <strong>decision
-              to redo evaluation</strong> when an early "+200 Elo" claim looked too good — the
-              100-game eval confirmed the smaller samples were noise. Honest measurement is harder
-              than honest training.
-            </p>
-            <p>
-              Full writeup with iteration-by-iteration results, what worked, what didn't, and what
-              I would change next time is in
-              <a href="https://github.com/Vitaliy-Pikalo/chess960-nn/blob/main/SUMMARY.md" target="_blank" rel="noopener">SUMMARY.md</a>.
-              Plain-language walkthrough of the architecture is in
-              <a href="https://github.com/Vitaliy-Pikalo/chess960-nn/blob/main/EXPLAINER.md" target="_blank" rel="noopener">EXPLAINER.md</a>.
-            </p>
+            <p>The original goal was 2000+ Elo to beat strong club players. The engine lands ~400 Elo short. Diagnosis: the architecture is sound; the limit is compute budget. Pretraining was the source of strength — the RL loop never had enough self-play data per iteration (30 games vs AlphaZero's thousands) or MCTS budget (100 sims vs 800) to push past the pretrained baseline.</p>
+            <p>The two pieces I'm proudest of are the <strong>gating mechanism</strong> (which caught a real regression that self-play stats alone would have hidden) and the <strong>decision to redo evaluation</strong> when an early "+200 Elo" claim looked too good — the 100-game eval confirmed the smaller samples were noise. Honest measurement is harder than honest training.</p>
+            <p>Full writeup in <a href="https://github.com/Vitaliy-Pikalo/chess960-nn/blob/main/SUMMARY.md" target="_blank" rel="noopener">SUMMARY.md</a>. Plain-language walkthrough in <a href="https://github.com/Vitaliy-Pikalo/chess960-nn/blob/main/EXPLAINER.md" target="_blank" rel="noopener">EXPLAINER.md</a>.</p>
           </div>
         </section>
 
         <footer class="site-footer">
+          <div><strong style="color: var(--fg);">chess960-nn</strong> · built by <a href="https://github.com/Vitaliy-Pikalo" target="_blank" rel="noopener">Vitaliy Pikalo</a></div>
           <div>
-            <strong style="color: var(--fg);">chess960-nn</strong> · built by
-            <a href="https://github.com/Vitaliy-Pikalo" target="_blank" rel="noopener">Vitaliy Pikalo</a>
-          </div>
-          <div>
-            <a href="https://github.com/Vitaliy-Pikalo/chess960-nn" target="_blank" rel="noopener">source on github ↗</a>
-            ·
-            <a href="https://github.com/Vitaliy-Pikalo/chess960-nn/blob/main/SUMMARY.md" target="_blank" rel="noopener">summary</a>
-            ·
+            <a href="https://github.com/Vitaliy-Pikalo/chess960-nn" target="_blank" rel="noopener">source on github ↗</a> ·
+            <a href="https://github.com/Vitaliy-Pikalo/chess960-nn/blob/main/SUMMARY.md" target="_blank" rel="noopener">summary</a> ·
             <a href="https://github.com/Vitaliy-Pikalo/chess960-nn/blob/main/EXPLAINER.md" target="_blank" rel="noopener">explainer</a>
           </div>
         </footer>
@@ -955,7 +807,7 @@
     </main>
   </div>
 
-  <!-- ==================== TRAIN VIEW ==================== -->
+  <!-- ==================== TRAIN ==================== -->
   <div class="workspace train" id="view-train" style="display:none;">
     <aside>
       <h1>training runs</h1>
@@ -963,22 +815,16 @@
       <ul class="runs-list" id="runsList"></ul>
     </aside>
     <main>
-      <div id="trainContent">
-        <div class="empty">pick a run from the sidebar</div>
-      </div>
+      <div id="trainContent"><div class="empty">pick a run from the sidebar</div></div>
     </main>
   </div>
 
-  <!-- ==================== PLAY VIEW ==================== -->
+  <!-- ==================== PLAY ==================== -->
   <div class="workspace" id="view-play" style="display:none;">
     <main>
       <div id="playStaticBanner" style="display:none;" class="static-banner">
-        <div class="t">⚠️ This is a static preview — the live engine is local-only.</div>
-        <div class="d">
-          The play feature needs the inference backend running on your machine. To play live, clone the repo
-          and run <code>DEMO launcher.ps1</code>. The board below is interactive but moves can't be sent to the
-          engine in this hosted preview.
-        </div>
+        <div class="t">⚠️ Static preview — the live engine is local-only.</div>
+        <div class="d">Play requires the inference backend. To play live, clone the repo and run <code>DEMO launcher.ps1</code>.</div>
       </div>
       <div class="demo-layout">
         <div class="board-card">
@@ -988,9 +834,7 @@
         <div class="panel-card">
           <h3>play vs the engine</h3>
           <p class="intro">
-            You play one of the 960 Chess960 starting positions against the trained network at ~100 MCTS
-            simulations/move. Click a piece, then its destination. Castling in Chess960 is "king takes own rook"
-            — drop your king onto your rook square.
+            Click a piece to see its legal moves. Click a destination square (or just slide to where you'd normally play — castling works as e1→g1 too). Your move shows immediately while the engine thinks.
           </p>
           <div class="form-row">
             <label>you play</label>
@@ -1008,6 +852,14 @@
             </select>
             <span class="hint">0–959</span>
           </div>
+          <div class="form-row">
+            <label>engine speed</label>
+            <div class="seg" id="playSpeed">
+              <button data-sims="50">fast</button>
+              <button data-sims="100" class="active">normal</button>
+              <button data-sims="200">strong</button>
+            </div>
+          </div>
           <div class="form-row" style="margin-top: 18px; gap: 8px;">
             <button class="btn primary" id="playNewBtn">new game</button>
             <button class="btn danger" id="playResignBtn" disabled>resign</button>
@@ -1021,15 +873,12 @@
     </main>
   </div>
 
-  <!-- ==================== WATCH VIEW ==================== -->
+  <!-- ==================== WATCH ==================== -->
   <div class="workspace" id="view-watch" style="display:none;">
     <main>
       <div id="watchStaticBanner" style="display:none;" class="static-banner">
-        <div class="t">⚠️ This is a static preview — the live engine is local-only.</div>
-        <div class="d">
-          Watch mode needs both the inference backend AND Stockfish running on your machine. To see
-          live games, clone the repo and run <code>DEMO launcher.ps1</code>.
-        </div>
+        <div class="t">⚠️ Static preview — the live engine is local-only.</div>
+        <div class="d">Watch mode needs the inference backend AND Stockfish running locally. Clone the repo and run <code>DEMO launcher.ps1</code>.</div>
       </div>
       <div class="demo-layout">
         <div class="board-card">
@@ -1039,9 +888,7 @@
         <div class="panel-card">
           <h3>nn vs stockfish</h3>
           <p class="intro">
-            The trained network plays a full game against Stockfish at the skill level you pick.
-            Moves stream live from the server. Skill 0 is roughly 1320 Elo; skill 10 is around 2255.
-            The network reliably handles skill 0-3, struggles at 5+, and loses cleanly past 7.
+            The trained network plays a full game against Stockfish. Moves stream live. Skill 0 ≈ 1320 Elo; skill 10 ≈ 2255. The network reliably handles skill 0-3, struggles at 5+, loses cleanly past 7.
           </p>
           <div class="form-row">
             <label>stockfish skill</label>
@@ -1087,12 +934,94 @@
   </div>
 </div>
 
-<!-- Promotion picker (hidden by default) -->
 <div id="promoModal" style="display:none;"></div>
 
 <script>
 (() => {
 'use strict';
+
+// ============================================================
+// Settings (localStorage backed)
+// ============================================================
+const BOARD_THEMES = [
+  {key: 'green',   light: '#eeeed2', dark: '#769656'},
+  {key: 'classic', light: '#d9c7a4', dark: '#8b6a47'},
+  {key: 'blue',    light: '#dee3e6', dark: '#5c89a9'},
+  {key: 'walnut',  light: '#e0c094', dark: '#7a4a2b'},
+  {key: 'slate',   light: '#c5cbd1', dark: '#5a6470'},
+  {key: 'rose',    light: '#f1d4d4', dark: '#9c5a6c'},
+];
+const PIECE_STYLES = [
+  {key: 'classic', glyph: '♞', label: 'classic'},
+  {key: 'clean',   glyph: '♞', label: 'clean'},
+  {key: 'bold',    glyph: '♞', label: 'bold'},
+];
+const SETTINGS_KEY = 'chess960-nn-settings';
+
+function loadSettings() {
+  try {
+    const raw = localStorage.getItem(SETTINGS_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch {}
+  return { theme: 'green', pieces: 'classic', speedSims: 100 };
+}
+function saveSettings(s) {
+  try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(s)); } catch {}
+}
+const SETTINGS = loadSettings();
+
+function applyTheme(themeKey) {
+  document.body.classList.forEach(c => { if (c.startsWith('theme-')) document.body.classList.remove(c); });
+  document.body.classList.add('theme-' + themeKey);
+  SETTINGS.theme = themeKey;
+  saveSettings(SETTINGS);
+  renderSettingsPanel();
+}
+function applyPieceStyle(pieceKey) {
+  document.body.classList.forEach(c => { if (c.startsWith('pieces-')) document.body.classList.remove(c); });
+  document.body.classList.add('pieces-' + pieceKey);
+  SETTINGS.pieces = pieceKey;
+  saveSettings(SETTINGS);
+  renderSettingsPanel();
+}
+applyTheme(SETTINGS.theme);
+applyPieceStyle(SETTINGS.pieces);
+
+// Settings panel rendering + toggling
+function renderSettingsPanel() {
+  const $tg = document.getElementById('themeGrid');
+  $tg.innerHTML = BOARD_THEMES.map(t => `
+    <button class="theme-swatch ${t.key === SETTINGS.theme ? 'active' : ''}" data-theme="${t.key}">
+      <div class="preview">
+        <div style="background:${t.light}"></div>
+        <div style="background:${t.dark}"></div>
+        <div style="background:${t.dark}"></div>
+        <div style="background:${t.light}"></div>
+      </div>
+      <div class="label">${t.key}</div>
+    </button>`).join('');
+  for (const b of $tg.querySelectorAll('button')) b.onclick = () => applyTheme(b.dataset.theme);
+
+  const $pg = document.getElementById('pieceGrid');
+  // Render piece styles using actual styled pieces for preview
+  $pg.innerHTML = PIECE_STYLES.map(p => `
+    <button class="piece-swatch ${p.key === SETTINGS.pieces ? 'active' : ''}" data-pieces="${p.key}">
+      <span class="glyph">${p.glyph}</span>
+      ${p.label}
+    </button>`).join('');
+  for (const b of $pg.querySelectorAll('button')) b.onclick = () => applyPieceStyle(b.dataset.pieces);
+}
+renderSettingsPanel();
+
+const $settingsBtn = document.getElementById('settingsBtn');
+const $settingsPanel = document.getElementById('settingsPanel');
+$settingsBtn.onclick = (e) => {
+  e.stopPropagation();
+  $settingsPanel.style.display = ($settingsPanel.style.display === 'none') ? '' : 'none';
+};
+document.addEventListener('click', (e) => {
+  if (!$settingsPanel.contains(e.target) && e.target !== $settingsBtn) $settingsPanel.style.display = 'none';
+});
 
 // ============================================================
 // Tab switching
@@ -1111,21 +1040,17 @@ function showTab(name) {
   if (name === 'train' && !TRAIN.loaded) TRAIN.init();
   if (name === 'play')  PLAY.onShow();
   if (name === 'watch') WATCH.onShow();
-  // Update url hash without scrolling
   history.replaceState(null, '', '#' + name);
 }
 window.showTab = showTab;
 for (const t of tabs) t.onclick = () => showTab(t.dataset.tab);
-
-// Load tab from URL hash on first paint
 const initialHash = (location.hash || '').replace('#', '');
 if (initialHash && views[initialHash]) showTab(initialHash);
 
 // ============================================================
-// Engine status badge + static-mode detection
+// Engine status + static-mode detection
 // ============================================================
 let STATIC_MODE = false;
-
 async function refreshEngineStatus() {
   const $s = document.getElementById('engineStatus');
   try {
@@ -1140,13 +1065,12 @@ async function refreshEngineStatus() {
       $s.classList.add('off'); $s.classList.remove('ok');
       enterStaticMode();
     }
-  } catch (e) {
+  } catch {
     $s.textContent = 'static preview · local demo only';
     $s.classList.add('off'); $s.classList.remove('ok');
     enterStaticMode();
   }
 }
-
 function enterStaticMode() {
   STATIC_MODE = true;
   document.getElementById('playStaticBanner').style.display = '';
@@ -1154,7 +1078,6 @@ function enterStaticMode() {
   document.getElementById('playNewBtn').disabled = true;
   document.getElementById('watchStartBtn').disabled = true;
 }
-
 refreshEngineStatus();
 
 // ============================================================
@@ -1180,18 +1103,35 @@ function fenToBoardArray(fen) {
   }
   return arr;
 }
+function boardArrayToFen(arr, sideToMove, castling, enPassant, halfmove, fullmove) {
+  const ranks = [];
+  for (let r = 0; r < 8; r++) {
+    let row = '', empty = 0;
+    for (let c = 0; c < 8; c++) {
+      const p = arr[r][c];
+      if (p === null) { empty += 1; }
+      else { if (empty > 0) { row += empty; empty = 0; } row += p; }
+    }
+    if (empty > 0) row += empty;
+    ranks.push(row);
+  }
+  return `${ranks.join('/')} ${sideToMove} ${castling} ${enPassant} ${halfmove} ${fullmove}`;
+}
 function fileRankToSquareName(file, rank) { return FILE_CHARS[file] + String(rank); }
+function squareNameToFileRank(name) { return [FILE_CHARS.indexOf(name[0]), parseInt(name[1], 10)]; }
 
 class Board {
   constructor(rootEl, opts = {}) {
     this.root = rootEl;
     this.flipped = !!opts.flipped;
     this.interactive = !!opts.interactive;
+    this.onSelect = opts.onSelect || null;  // (squareName) => void; called when user picks up a piece
     this.onMove = opts.onMove || null;
     this.selected = null;
     this.lastMove = null;
     this.currentFen = '';
     this.inCheckSquare = null;
+    this.legalTargets = new Set();
     this.squares = [];
     this._renderEmpty();
   }
@@ -1205,8 +1145,7 @@ class Board {
         const dispC = this.flipped ? 7 - c : c;
         const sqLight = ((dispR + dispC) % 2) === 0;
         sq.className = 'sq ' + (sqLight ? 'light' : 'dark');
-        const file = dispC;
-        const rank = 8 - dispR;
+        const file = dispC, rank = 8 - dispR;
         const name = fileRankToSquareName(file, rank);
         sq.dataset.sq = name;
         sq.dataset.file = file;
@@ -1254,9 +1193,29 @@ class Board {
     this._repaintHighlights();
   }
   setInCheckSquare(name) { this.inCheckSquare = name; this._repaintHighlights(); }
-  clearSelection() { this.selected = null; this._repaintHighlights(); }
+  setLegalTargets(targetsArr) {
+    this.legalTargets = new Set(targetsArr || []);
+    this._repaintHighlights();
+  }
+  clearSelection() { this.selected = null; this.legalTargets.clear(); this._repaintHighlights(); }
+  flashMove(toName) {
+    const sq = this._byName(toName);
+    if (!sq) return;
+    const piece = sq.querySelector('.piece');
+    if (piece) {
+      piece.classList.remove('just-moved');
+      // Force reflow so re-adding the class restarts the animation
+      void piece.offsetWidth;
+      piece.classList.add('just-moved');
+    }
+    sq.classList.remove('just-moved-glow');
+    void sq.offsetWidth;
+    sq.classList.add('just-moved-glow');
+  }
   _repaintHighlights() {
-    for (const sq of this.squares) sq.classList.remove('sel', 'last-from', 'last-to', 'in-check');
+    for (const sq of this.squares) {
+      sq.classList.remove('sel', 'last-from', 'last-to', 'in-check', 'legal-empty', 'legal-capture');
+    }
     if (this.lastMove) {
       this._byName(this.lastMove.from)?.classList.add('last-from');
       this._byName(this.lastMove.to)?.classList.add('last-to');
@@ -1266,6 +1225,14 @@ class Board {
       this._byName(name)?.classList.add('sel');
     }
     if (this.inCheckSquare) this._byName(this.inCheckSquare)?.classList.add('in-check');
+    if (this.legalTargets.size > 0) {
+      for (const t of this.legalTargets) {
+        const el = this._byName(t);
+        if (!el) continue;
+        const hasPiece = !!el.querySelector('.piece').textContent;
+        el.classList.add(hasPiece ? 'legal-capture' : 'legal-empty');
+      }
+    }
   }
   _byName(name) { return this.root.querySelector(`[data-sq="${name}"]`); }
   _onClick(name) {
@@ -1276,38 +1243,43 @@ class Board {
     if (this.selected) {
       const fromName = fileRankToSquareName(this.selected.file, this.selected.rank);
       if (fromName === name) { this.clearSelection(); return; }
+      // If clicking another of own pieces (not a legal target), reselect
+      const pieceHere = sq.querySelector('.piece').textContent;
+      const isOwnPiece = pieceHere && this._isOwnPiece(pieceHere);
+      const isLegalTarget = this.legalTargets.has(name);
+      if (isOwnPiece && !isLegalTarget) {
+        this.selected = {file, rank};
+        if (this.onSelect) this.onSelect(name);
+        this._repaintHighlights();
+        return;
+      }
       const uci = fromName + name;
       this.clearSelection();
       if (this.onMove) this.onMove(uci, fromName, name);
     } else {
       const piece = sq.querySelector('.piece').textContent;
-      if (piece) { this.selected = {file, rank}; this._repaintHighlights(); }
+      if (piece && this._isOwnPiece(piece)) {
+        this.selected = {file, rank};
+        if (this.onSelect) this.onSelect(name);
+        this._repaintHighlights();
+      }
     }
+  }
+  _isOwnPiece(_glyph) {
+    // Subclassable; default board considers all pieces "own".
+    // Play view overrides via filtering legal targets to user color.
+    return true;
   }
 }
 
 // ============================================================
-// Train view
+// Train view (unchanged)
 // ============================================================
 const TRAIN = {
-  loaded: false, runs: [], selected: null, autoRefresh: true,
-  refreshTimer: null, charts: {},
-
-  init() {
-    this.loaded = true;
-    this.loadRuns();
-    setInterval(() => this.loadRuns(), 30000);
-  },
-  async fetchJson(url) {
-    const r = await fetch(url);
-    if (!r.ok) throw new Error(`${url} -> ${r.status}`);
-    return r.json();
-  },
-  async loadRuns() {
-    try { this.runs = await this.fetchJson('/api/runs'); }
-    catch { this.runs = []; }
-    this.renderRunsList();
-  },
+  loaded: false, runs: [], selected: null, autoRefresh: true, refreshTimer: null, charts: {},
+  init() { this.loaded = true; this.loadRuns(); setInterval(() => this.loadRuns(), 30000); },
+  async fetchJson(url) { const r = await fetch(url); if (!r.ok) throw new Error(`${url} -> ${r.status}`); return r.json(); },
+  async loadRuns() { try { this.runs = await this.fetchJson('/api/runs'); } catch { this.runs = []; } this.renderRunsList(); },
   renderRunsList() {
     const $list = document.getElementById('runsList');
     $list.innerHTML = '';
@@ -1319,29 +1291,17 @@ const TRAIN = {
       const li = document.createElement('li');
       if (r.name === this.selected) li.classList.add('active');
       const badge = r.type === 'rl' ? 'rl' : (r.type === 'pretrain' ? 'pretrain' : '');
-      li.innerHTML = `
-        <div class="run-name">${r.name}</div>
-        <div class="run-meta">
-          <span class="badge ${badge}">${r.type}</span>
-          ${r.n_metric_lines ? r.n_metric_lines + ' steps' : ''}
-          ${r.n_checkpoints ? ' · ' + r.n_checkpoints + ' ckpt' : ''}
-        </div>`;
+      li.innerHTML = `<div class="run-name">${r.name}</div>
+        <div class="run-meta"><span class="badge ${badge}">${r.type}</span>
+        ${r.n_metric_lines ? r.n_metric_lines + ' steps' : ''}
+        ${r.n_checkpoints ? ' · ' + r.n_checkpoints + ' ckpt' : ''}</div>`;
       li.onclick = () => this.selectRun(r.name);
       $list.appendChild(li);
     }
   },
-  async selectRun(name) {
-    this.selected = name;
-    this.renderRunsList();
-    await this.renderRun(name);
-    if (this.autoRefresh) this.startRefresh();
-  },
-  startRefresh() {
-    this.stopRefresh();
-    this.refreshTimer = setInterval(() => { if (this.selected) this.renderRun(this.selected, true); }, 5000);
-  },
+  async selectRun(name) { this.selected = name; this.renderRunsList(); await this.renderRun(name); if (this.autoRefresh) this.startRefresh(); },
+  startRefresh() { this.stopRefresh(); this.refreshTimer = setInterval(() => { if (this.selected) this.renderRun(this.selected, true); }, 5000); },
   stopRefresh() { if (this.refreshTimer) clearInterval(this.refreshTimer); this.refreshTimer = null; },
-
   async renderRun(name, incremental) {
     const $content = document.getElementById('trainContent');
     let info, metrics, summary;
@@ -1360,22 +1320,19 @@ const TRAIN = {
   buildLayout(name, info) {
     const $content = document.getElementById('trainContent');
     const isRL = info.type === 'rl';
-    $content.innerHTML = `
-      <div id="mainView">
-        <div class="run-header">
-          <h2>${name} <span class="badge ${info.type}">${info.type}</span></h2>
-          <div class="controls">
-            <label class="toggle"><input type="checkbox" id="autoToggle" ${this.autoRefresh ? 'checked' : ''}> auto-refresh</label>
-            <button id="refreshBtn">refresh</button>
-          </div>
+    $content.innerHTML = `<div id="mainView">
+      <div class="run-header">
+        <h2>${name} <span class="badge ${info.type}">${info.type}</span></h2>
+        <div class="controls">
+          <label class="toggle"><input type="checkbox" id="autoToggle" ${this.autoRefresh ? 'checked' : ''}> auto-refresh</label>
+          <button id="refreshBtn">refresh</button>
         </div>
-        <div class="stats-grid" id="statsGrid"></div>
-        ${(info.type === 'pretrain' || info.type === 'unknown') ? `
-          <div class="chart-wrap"><div class="chart-title">loss curves</div><canvas id="lossChart"></canvas></div>
-          <div class="chart-wrap"><div class="chart-title">top-1 accuracy</div><canvas id="accChart"></canvas></div>
-        ` : ''}
-        ${isRL ? '<div id="summaryTable"></div>' : ''}
-      </div>`;
+      </div>
+      <div class="stats-grid" id="statsGrid"></div>
+      ${(info.type === 'pretrain' || info.type === 'unknown') ? `
+        <div class="chart-wrap"><div class="chart-title">loss curves</div><canvas id="lossChart"></canvas></div>
+        <div class="chart-wrap"><div class="chart-title">top-1 accuracy</div><canvas id="accChart"></canvas></div>` : ''}
+      ${isRL ? '<div id="summaryTable"></div>' : ''}</div>`;
     document.getElementById('autoToggle').onchange = (ev) => {
       this.autoRefresh = ev.target.checked;
       if (this.autoRefresh) this.startRefresh(); else this.stopRefresh();
@@ -1407,12 +1364,10 @@ const TRAIN = {
       cards.push({label:'match score', value: fmt(m.score, 3), sub: `${m.wins ?? 0}W/${m.losses ?? 0}L/${m.draws ?? 0}D`});
       cards.push({label:'promoted', value: summary?.promoted ? 'yes' : 'no', sub: `threshold ${summary?.promote_threshold ?? '-'}`, color: summary?.promoted ? 'yes' : 'no'});
     }
-    $sg.innerHTML = cards.map(c => `
-      <div class="stat-card">
-        <div class="stat-label">${c.label}</div>
-        <div class="stat-value ${c.color ?? ''}">${c.value}</div>
-        ${c.sub ? `<div class="stat-sub">${c.sub}</div>` : ''}
-      </div>`).join('');
+    $sg.innerHTML = cards.map(c => `<div class="stat-card">
+      <div class="stat-label">${c.label}</div>
+      <div class="stat-value ${c.color ?? ''}">${c.value}</div>
+      ${c.sub ? `<div class="stat-sub">${c.sub}</div>` : ''}</div>`).join('');
   },
   updateCharts(metrics, runType) {
     if (runType !== 'pretrain' && runType !== 'unknown') return;
@@ -1444,23 +1399,20 @@ const TRAIN = {
   updateSummaryTable(summary, runType) {
     if (runType !== 'rl') return;
     const $t = document.getElementById('summaryTable'); if (!$t) return;
-    $t.innerHTML = `
-      <div class="chart-wrap" style="height:auto;">
-        <div class="chart-title">iteration details</div>
-        <table>
-          <tr><th>stage</th><th>metric</th><th class="num">value</th></tr>
-          <tr><td>self-play</td><td>games</td><td class="num">${summary?.selfplay?.games ?? '-'}</td></tr>
-          <tr><td></td><td>positions</td><td class="num">${summary?.selfplay?.positions ?? '-'}</td></tr>
-          <tr><td></td><td>W / L / D / resigns</td><td class="num">${summary?.selfplay?.W ?? '-'} / ${summary?.selfplay?.L ?? '-'} / ${summary?.selfplay?.D ?? '-'} / ${summary?.selfplay?.resigns ?? '-'}</td></tr>
-          <tr><td>train</td><td>final loss</td><td class="num">${fmt(summary?.train?.loss, 4)}</td></tr>
-          <tr><td></td><td>policy / value loss</td><td class="num">${fmt(summary?.train?.policy_loss, 4)} / ${fmt(summary?.train?.value_loss, 4)}</td></tr>
-          <tr><td></td><td>steps / samples</td><td class="num">${summary?.train?.steps ?? '-'} / ${(summary?.train?.samples ?? 0).toLocaleString()}</td></tr>
-          <tr><td>match</td><td>score (a's POV)</td><td class="num">${fmt(summary?.match?.score, 3)}</td></tr>
-          <tr><td></td><td>W / L / D</td><td class="num">${summary?.match?.wins ?? '-'} / ${summary?.match?.losses ?? '-'} / ${summary?.match?.draws ?? '-'}</td></tr>
-          <tr><td>gate</td><td>promoted</td><td class="num ${summary?.promoted ? 'yes' : 'no'}">${summary?.promoted ? 'YES' : 'no'}</td></tr>
-          <tr><td></td><td>threshold</td><td class="num">${summary?.promote_threshold ?? '-'}</td></tr>
-        </table>
-      </div>`;
+    $t.innerHTML = `<div class="chart-wrap" style="height:auto;">
+      <div class="chart-title">iteration details</div>
+      <table>
+        <tr><th>stage</th><th>metric</th><th class="num">value</th></tr>
+        <tr><td>self-play</td><td>games</td><td class="num">${summary?.selfplay?.games ?? '-'}</td></tr>
+        <tr><td></td><td>positions</td><td class="num">${summary?.selfplay?.positions ?? '-'}</td></tr>
+        <tr><td></td><td>W / L / D / resigns</td><td class="num">${summary?.selfplay?.W ?? '-'} / ${summary?.selfplay?.L ?? '-'} / ${summary?.selfplay?.D ?? '-'} / ${summary?.selfplay?.resigns ?? '-'}</td></tr>
+        <tr><td>train</td><td>final loss</td><td class="num">${fmt(summary?.train?.loss, 4)}</td></tr>
+        <tr><td></td><td>policy / value loss</td><td class="num">${fmt(summary?.train?.policy_loss, 4)} / ${fmt(summary?.train?.value_loss, 4)}</td></tr>
+        <tr><td></td><td>steps / samples</td><td class="num">${summary?.train?.steps ?? '-'} / ${(summary?.train?.samples ?? 0).toLocaleString()}</td></tr>
+        <tr><td>match</td><td>score (a's POV)</td><td class="num">${fmt(summary?.match?.score, 3)}</td></tr>
+        <tr><td></td><td>W / L / D</td><td class="num">${summary?.match?.wins ?? '-'} / ${summary?.match?.losses ?? '-'} / ${summary?.match?.draws ?? '-'}</td></tr>
+        <tr><td>gate</td><td>promoted</td><td class="num ${summary?.promoted ? 'yes' : 'no'}">${summary?.promoted ? 'YES' : 'no'}</td></tr>
+        <tr><td></td><td>threshold</td><td class="num">${summary?.promote_threshold ?? '-'}</td></tr></table></div>`;
   },
   upsertChart(canvas, id, cfg) {
     if (this.charts[id]) {
@@ -1473,19 +1425,41 @@ const TRAIN = {
 };
 
 // ============================================================
-// Play view
+// Play view — with optimistic UI, legal-move dots, speed picker
 // ============================================================
 const PLAY = {
-  board: null, game: null, initialized: false,
+  board: null,
+  game: null,
+  initialized: false,
+  pendingUserMove: false,  // lock board during engine reply
+  legalMovesByFrom: {},    // { 'e2': ['e3', 'e4'], ... } — computed from game.legal_moves
+
   onShow() {
     if (!this.initialized) {
       this.board = new Board(document.getElementById('playBoard'), {
         interactive: true,
-        onMove: (uci) => this.sendMove(uci),
+        onSelect: (name) => this._onPieceSelected(name),
+        onMove:   (uci) => this.sendMove(uci),
       });
+      // Override "own piece" check to filter by user color
+      this.board._isOwnPiece = (glyph) => this._glyphIsOwnPiece(glyph);
       this.board.setFen('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1');
       document.getElementById('playNewBtn').onclick = () => this.newGame();
       document.getElementById('playResignBtn').onclick = () => this.resign();
+      // Speed selector
+      const segButtons = document.querySelectorAll('#playSpeed button');
+      for (const b of segButtons) {
+        if (parseInt(b.dataset.sims, 10) === SETTINGS.speedSims) {
+          for (const x of segButtons) x.classList.remove('active');
+          b.classList.add('active');
+        }
+        b.onclick = () => {
+          for (const x of segButtons) x.classList.remove('active');
+          b.classList.add('active');
+          SETTINGS.speedSims = parseInt(b.dataset.sims, 10);
+          saveSettings(SETTINGS);
+        };
+      }
       this.initialized = true;
     }
   },
@@ -1513,29 +1487,157 @@ const PLAY = {
     } catch (e) { this.setStatus('failed to start: ' + e.message, 'loss'); }
     finally { document.getElementById('playNewBtn').disabled = false; }
   },
+  _glyphIsOwnPiece(glyph) {
+    if (!this.game) return true;
+    const userWhite = this.game.user_color === 'white';
+    // Unicode white pieces: ♔♕♖♗♘♙ (U+2654..U+2659); black: ♚♛♜♝♞♟ (U+265A..U+265F)
+    const isWhiteGlyph = ['♔','♕','♖','♗','♘','♙'].includes(glyph);
+    const isBlackGlyph = ['♚','♛','♜','♝','♞','♟'].includes(glyph);
+    if (isWhiteGlyph) return userWhite;
+    if (isBlackGlyph) return !userWhite;
+    return false;
+  },
+  _onPieceSelected(name) {
+    // Show legal-move destinations from this square
+    const targets = this.legalMovesByFrom[name] || [];
+    this.board.setLegalTargets(targets);
+  },
   async sendMove(uci) {
     if (!this.game || this.game.result || STATIC_MODE) return;
+    if (this.pendingUserMove) return;
+    // Promotion detection (pawn -> last rank)
     if (this._isPossiblePromotion(uci)) {
       const piece = await this._askPromotion();
       if (!piece) return;
       uci = uci + piece;
     }
+    // Save snapshot for revert
+    const oldFen = this.game.fen;
+    const oldHistory = this.game.move_history_san.slice();
+    // Optimistic visual update — move the piece(s) client-side
+    this._applyMoveOptimistically(uci);
     this.setStatus('engine thinking…', 'active');
+    this.pendingUserMove = true;
+    document.getElementById('playResignBtn').disabled = true;
+
+    // CRITICAL: force the browser to paint before we start the fetch. On
+    // localhost the request can complete in <1ms and the browser would
+    // otherwise batch both the optimistic update and the engine reply into
+    // a single render frame, hiding the user's move. Two animation frames
+    // guarantees the optimistic state is committed to screen.
+    await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+    // Small minimum hold so the user clearly perceives their own move even
+    // when the engine is on "fast" (50 sims, ~300-500ms).
+    const userMoveShownAt = performance.now();
+
     try {
       const r = await fetch('/api/play/move', {
         method: 'POST', headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({game_id: this.game.game_id, uci}),
+        body: JSON.stringify({
+          game_id: this.game.game_id,
+          uci,
+          n_simulations: SETTINGS.speedSims,
+        }),
       });
       if (!r.ok) {
         const txt = await r.text();
+        // Revert
+        this.game.fen = oldFen;
+        this.game.move_history_san = oldHistory;
+        this.board.setFen(oldFen);
+        this._renderMoveList(oldHistory);
         this.setStatus('rejected: ' + txt, 'loss');
-        this.board.setFen(this.game.fen);
+        document.getElementById('playResignBtn').disabled = !!this.game.result;
         return;
       }
       const data = await r.json();
+      // Ensure at least ~280ms have passed since we showed the user's move,
+      // so even fast engine replies don't visually collapse with it.
+      const elapsed = performance.now() - userMoveShownAt;
+      const MIN_HOLD_MS = 280;
+      if (elapsed < MIN_HOLD_MS) {
+        await new Promise(r => setTimeout(r, MIN_HOLD_MS - elapsed));
+      }
       this.applyState(data);
+      // Flash the engine's reply too so it's also visually clear.
+      if (data.engine_move_uci && data.engine_move_uci.length >= 4) {
+        this.board.flashMove(data.engine_move_uci.slice(2, 4));
+      }
       this.setStatus(this._statusText(data), data.is_game_over ? 'win' : 'active');
     } catch (e) { this.setStatus('error: ' + e.message, 'loss'); }
+    finally { this.pendingUserMove = false; }
+  },
+  _applyMoveOptimistically(uci) {
+    const from = uci.slice(0, 2), to = uci.slice(2, 4);
+    const promo = uci.length === 5 ? uci[4] : null;
+    const fen = this.game.fen;
+    const parts = fen.split(' ');
+    const arr = fenToBoardArray(fen);
+    const userWhite = this.game.user_color === 'white';
+    const [fF, fR] = squareNameToFileRank(from);
+    const [tF, tR] = squareNameToFileRank(to);
+    const fromRow = 8 - fR, fromCol = fF;
+    const toRow   = 8 - tR, toCol   = tF;
+    let piece = arr[fromRow][fromCol];
+    if (!piece) return;
+    // Detect castling: own king + (a) target is own rook OR (b) target is 2 files away
+    const isKing = piece === 'K' || piece === 'k';
+    const targetPiece = arr[toRow][toCol];
+    const targetIsOwnRook = targetPiece && (
+      (piece === 'K' && targetPiece === 'R') ||
+      (piece === 'k' && targetPiece === 'r')
+    );
+    const filesApart = Math.abs(fF - tF);
+    if (isKing && (targetIsOwnRook || filesApart >= 2) && fR === tR) {
+      // Castling — compute final king/rook squares
+      const kingside = tF > fF;
+      const kingDestFile = kingside ? 6 : 2;   // g-file or c-file
+      const rookDestFile = kingside ? 5 : 3;   // f-file or d-file
+      const rookFromFile = targetIsOwnRook ? tF
+                          : (kingside ? this._findRookFile(arr, fR, fF, +1, userWhite)
+                                      : this._findRookFile(arr, fR, fF, -1, userWhite));
+      arr[fromRow][fromCol] = null;
+      if (rookFromFile !== null) arr[8-fR][rookFromFile] = null;
+      arr[8-fR][kingDestFile] = piece;
+      if (rookFromFile !== null) arr[8-fR][rookDestFile] = userWhite ? 'R' : 'r';
+    } else {
+      // Normal move (with optional promotion)
+      arr[fromRow][fromCol] = null;
+      let placed = piece;
+      if (promo) {
+        const isPawn = piece === 'P' || piece === 'p';
+        if (isPawn) placed = (piece === 'P') ? promo.toUpperCase() : promo.toLowerCase();
+      }
+      arr[toRow][toCol] = placed;
+      // En passant: if pawn moved diagonally to empty square, remove the captured pawn
+      const isPawn = piece === 'P' || piece === 'p';
+      if (isPawn && fF !== tF && targetPiece === null) {
+        // Captured pawn sits on the from-rank, target-file
+        const capturedRow = fromRow;
+        arr[capturedRow][toCol] = null;
+      }
+    }
+    // Flip side to move, increment fullmove if black moved
+    const newSide = parts[1] === 'w' ? 'b' : 'w';
+    const newFull = (parts[1] === 'b') ? String(parseInt(parts[5], 10) + 1) : parts[5];
+    const newFen = boardArrayToFen(arr, newSide, parts[2] || '-', '-', '0', newFull);
+    this.game.fen = newFen;
+    this.board.setFen(newFen);
+    this.board.setLastMove(from, to);
+    this.board.clearSelection();
+    // Trigger a brief pop animation on the destination so the user gets
+    // immediate visual feedback that their move was accepted.
+    this.board.flashMove(to);
+  },
+  _findRookFile(arr, rank, kingFile, direction, userWhite) {
+    const row = 8 - rank;
+    const rookChar = userWhite ? 'R' : 'r';
+    let f = kingFile + direction;
+    while (f >= 0 && f <= 7) {
+      if (arr[row][f] === rookChar) return f;
+      f += direction;
+    }
+    return null;
   },
   async resign() {
     if (!this.game || this.game.result) return;
@@ -1556,6 +1658,45 @@ const PLAY = {
     this.board.setInCheckSquare(data.in_check ? this._findKingSquare(data.fen, data.side_to_move) : null);
     this._renderMoveList(data.move_history_san);
     document.getElementById('playResignBtn').disabled = !!data.result;
+    // Index legal moves by from-square. Strip promotion suffix to keep dots tidy.
+    this.legalMovesByFrom = {};
+    for (const uci of (data.legal_moves || [])) {
+      const from = uci.slice(0, 2);
+      const to   = uci.slice(2, 4);
+      (this.legalMovesByFrom[from] ||= new Set()).add(to);
+    }
+    for (const k of Object.keys(this.legalMovesByFrom)) {
+      this.legalMovesByFrom[k] = Array.from(this.legalMovesByFrom[k]);
+    }
+    // Also: for standard-castling click affordance, add e1g1/e1c1 (etc.) virtual
+    // targets when a king-takes-rook castle is legal.
+    this._addStandardCastlingShortcuts();
+  },
+  _addStandardCastlingShortcuts() {
+    // Walk legal moves; for any move where from-square has user's king and
+    // it's a chess960 king-takes-own-rook castling, also surface the standard
+    // king-2-squares destination square so it appears as a dot.
+    if (!this.game) return;
+    const arr = fenToBoardArray(this.game.fen);
+    const userWhite = this.game.user_color === 'white';
+    const kingChar = userWhite ? 'K' : 'k';
+    const rookChar = userWhite ? 'R' : 'r';
+    for (const [from, targets] of Object.entries(this.legalMovesByFrom)) {
+      const [fF, fR] = squareNameToFileRank(from);
+      if (arr[8 - fR][fF] !== kingChar) continue;
+      const extra = [];
+      for (const t of targets) {
+        const [tF, tR] = squareNameToFileRank(t);
+        if (tR !== fR) continue;
+        if (arr[8 - tR][tF] !== rookChar) continue;
+        // It's a castle; add the standard destination (g/c file)
+        const kingside = tF > fF;
+        const destFile = kingside ? 6 : 2;
+        const destName = fileRankToSquareName(destFile, fR);
+        if (!targets.includes(destName)) extra.push(destName);
+      }
+      for (const e of extra) targets.push(e);
+    }
   },
   _renderMoveList(moves) {
     const $ml = document.getElementById('playMoveList');
@@ -1598,15 +1739,10 @@ const PLAY = {
       const glyphs = userWhite
         ? [['q','♕'], ['r','♖'], ['b','♗'], ['n','♘']]
         : [['q','♛'], ['r','♜'], ['b','♝'], ['n','♞']];
-      modal.innerHTML = `
-        <div class="modal-bg">
-          <div class="modal">
-            <h3>promote pawn to:</h3>
-            <div class="choices">
-              ${glyphs.map(([k, g]) => `<button data-p="${k}">${g}</button>`).join('')}
-            </div>
-          </div>
-        </div>`;
+      modal.innerHTML = `<div class="modal-bg"><div class="modal">
+        <h3>promote pawn to:</h3>
+        <div class="choices">${glyphs.map(([k, g]) => `<button data-p="${k}">${g}</button>`).join('')}</div>
+      </div></div>`;
       const cleanup = (val) => { modal.style.display = 'none'; modal.innerHTML = ''; resolve(val); };
       for (const b of modal.querySelectorAll('button[data-p]')) b.onclick = () => cleanup(b.dataset.p);
     });
@@ -1621,7 +1757,7 @@ const PLAY = {
 };
 
 // ============================================================
-// Watch view
+// Watch view (unchanged from prior)
 // ============================================================
 const WATCH = {
   board: null, source: null, match: null, initialized: false, moves: [],
